@@ -8,9 +8,10 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  esbuild: {
+  oxc: {
     // Next.js sets "jsx": "preserve" in tsconfig; Vitest must compile JSX itself.
-    jsx: "automatic",
+    // Vite 8 (Vitest 5) transforms TS/JSX with Oxc and ignores the old `esbuild` option.
+    jsx: { runtime: "automatic" },
   },
   test: {
     environment: "node",
