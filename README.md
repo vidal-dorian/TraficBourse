@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route and the SQLite database layer (Drizzle, WAL mode). No business tables yet.
+Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode) and the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)). No business tables yet.
 
 ## Prerequisites
 
@@ -36,6 +36,7 @@ The database is always opened in WAL mode with a busy timeout, so the web and jo
 | --- | --- |
 | `npm run dev` | Next.js dev server |
 | `npm run build` | Production build (`output: "standalone"`) |
+| `npm run build:scripts` | Bundles the migration runner and the jobs entrypoint into `dist/` with esbuild (used by the Docker image) |
 | `npm run start` | Serves the production build |
 | `npm run lint` | ESLint (`eslint.config.mjs`, Next.js core-web-vitals + TypeScript rules) |
 | `npm test` | Vitest, runs `tests/**/*.test.{ts,tsx}` once |
@@ -61,5 +62,18 @@ src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle 
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
 src/lib/db/migrations/        generated SQL migrations
+src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 tests/                        Vitest tests
+Dockerfile                    multi-stage image shared by the web, jobs and migrate services
+docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 ```
+
+## Docker
+
+`docker compose up -d` runs the stack described in [`DEPLOY.md`](./DEPLOY.md). On an x86 machine, build for its own platform:
+
+```bash
+mkdir -p data && PLATFORM=linux/amd64 BOURSE_DATA_DIR=./data docker compose up -d --build
+```
+
+The end-to-end Docker tests are skipped by default; run them with `DOCKER_TESTS=1 npx vitest run tests/docker.integration.test.ts` (`PLATFORM` defaults to the host platform).
