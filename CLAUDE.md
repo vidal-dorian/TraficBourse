@@ -96,7 +96,7 @@ Only two inbound flows: visitors/Dorian through Cloudflare, Claude through `/api
     /api/mcp/route.ts             → MCP endpoint
     /api/health/route.ts
   /lib
-    /db         schema.ts, client.ts, migrations/
+    /db         schema.ts, client.ts, migrate.ts, migrations/
     /schemas    brief.ts (Zod), chart-spec.ts, ...
     /mcp        server.ts, tools/*.ts, auth.ts
     /market     provider.ts, yahoo.ts, twelvedata.ts, snapshot.ts
@@ -235,6 +235,10 @@ Server-side rules beyond Zod:
   - `publish_brief`: idempotency (publishing twice for the same date/kind leaves one brief), transaction rollback on error, weekly coverage rule.
   - Snapshot calculations (variations, `moved` flag) on fixed price fixtures.
   - One integration test calling the MCP endpoint with the SDK client (auth required, tools listed, `publish_brief` dry run).
+- Commands (Node 22, npm 10; details in `README.md`):
+  - `npm run dev` / `npm run build` / `npm run start`: Next.js dev server, production build, production server.
+  - `npm run lint` (ESLint), `npm test` (Vitest, `tests/**/*.test.{ts,tsx}`), `npm run typecheck` (`tsc --noEmit`).
+  - `npm run db:generate`: new Drizzle migration from `src/lib/db/schema.ts`. `npm run db:migrate`: applies the migrations to the SQLite file at `DATABASE_PATH` (default `./data/bourse.db`, see `.env.example`), in WAL mode.
 - Local dev: a seed script with fake instruments, prices and one sample brief so every page renders without Claude. Use the MCP Inspector for manual tool testing.
 - UI: mobile-first (Dorian reads on his phone in the morning), French copy, minimal Tailwind until the design system is chosen (see §12).
 
