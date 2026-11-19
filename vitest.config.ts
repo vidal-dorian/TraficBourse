@@ -16,5 +16,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.{ts,tsx}"],
     testTimeout: 60_000,
+    // Builds the Docker image ahead of the gated Docker tests (no-op unless DOCKER_TESTS=1).
+    globalSetup: ["tests/setup/docker-build-cache.ts"],
   },
 });
