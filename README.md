@@ -72,7 +72,7 @@ docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 
 ## Docker
 
-`docker compose up -d` runs the stack described in [`DEPLOY.md`](./DEPLOY.md). On an x86 machine, build for its own platform:
+`docker compose build` then `docker compose up -d` runs the stack described in [`DEPLOY.md`](./DEPLOY.md). There is no CI image on GHCR yet (story #9), so the image is always built locally. On an x86 machine, build for its own platform:
 
 ```bash
 mkdir -p data && sudo chown 1000:1000 data   # the containers run as uid 1000
