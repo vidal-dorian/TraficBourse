@@ -29,7 +29,7 @@
     "eslint-config-next": "^15.5.29",
     "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^3.2.7",
     "yaml": "^2.9.1"
   },
