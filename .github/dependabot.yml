@@ -1,15 +1,35 @@
 # Weekly bumps of the pinned GitHub Actions SHAs, the npm packages and the Docker base image.
+#
+# Major versions are ignored for npm and Docker: CLAUDE.md pins the stack (Next.js 15,
+# Node 22), and a major upgrade (Next 16, TypeScript 7, ESLint 10, Node 26...) is real
+# migration work that goes through its own user story, not a bot PR.
+# Minor and patch npm bumps are grouped into one weekly PR, and only proposed once a release
+# is a few days old (cooldown), so a compromised version that gets yanked quickly never lands.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
