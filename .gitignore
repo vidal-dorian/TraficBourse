@@ -7,3 +7,6 @@ coverage/
 *.db
 *.db-wal
 *.db-shm
+data/
+next-env.d.ts
+*.tsbuildinfo
