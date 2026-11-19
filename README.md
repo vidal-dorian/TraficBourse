@@ -83,7 +83,7 @@ The QEMU build on an x64 runner costs Actions minutes (several times a native bu
 
 ## Docker
 
-`docker compose pull` then `docker compose up -d` runs the stack described in [`DEPLOY.md`](./DEPLOY.md), with the `linux/arm64` image published by CI on GHCR (private package: `docker login ghcr.io` first). CI only publishes `linux/arm64`, so on an x86 machine build for its own platform:
+`docker compose pull && docker compose up -d --no-build` runs the stack described in [`DEPLOY.md`](./DEPLOY.md), with the `linux/arm64` image published by CI on GHCR (private package: `docker login ghcr.io` first). CI only publishes `linux/arm64`, so on an x86 machine build for its own platform:
 
 ```bash
 mkdir -p data && sudo chown 1000:1000 data   # the containers run as uid 1000

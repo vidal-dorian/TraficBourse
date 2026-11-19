@@ -129,11 +129,16 @@ download it, even though the repository stays private.
 ## 6. Start
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose pull && docker compose up -d --no-build
 docker compose ps -a                 # web healthy, jobs running, migrate exited (0)
 curl -s http://127.0.0.1:3000/api/health
 ```
+
+Always pull first and start with `--no-build`. `web` also has a `build:` section (for the
+local fallback below): without `--no-build`, a failed pull (expired token, unknown tag, no
+image for that commit) makes Compose quietly build the current checkout and tag it with the
+GHCR name, so the Pi would run code that CI never checked. `docker compose pull` exits with
+an error when the pull is denied, so `&&` stops before `up`.
 
 `migrate`, `web` and `jobs` run the same image, `ghcr.io/vidal-dorian/traficbourse:latest`
 (or the tag in `IMAGE_TAG`). `web` and `jobs` restart on their own after a crash or a reboot
@@ -144,7 +149,7 @@ curl -s http://127.0.0.1:3000/api/health
 After a push on `main`, wait for the CI run to finish (Actions tab), then:
 
 ```bash
-docker compose pull && docker compose up -d
+docker compose pull && docker compose up -d --no-build
 docker image prune -f                # drop the old images
 ```
 
@@ -164,8 +169,13 @@ the commit list on GitHub or on the package page). Run a previous one, either fo
 or by setting `IMAGE_TAG=<commit-sha>` in `.env`:
 
 ```bash
-IMAGE_TAG=<previous-commit-sha> docker compose up -d
+IMAGE_TAG=<previous-commit-sha> docker compose pull && IMAGE_TAG=<previous-commit-sha> docker compose up -d --no-build
 ```
+
+If the pull fails (mistyped SHA, expired token, or no image for that commit because its CI run
+failed or was superseded by a newer push), the command stops there and the current version
+keeps running: never drop `--no-build`, or Compose would build the current checkout and tag it
+with the old SHA.
 
 Remove `IMAGE_TAG` from `.env` to follow `latest` again. Migrations only go forward: if the
 faulty version changed the schema, restore a backup of `bourse.db` (taken with
