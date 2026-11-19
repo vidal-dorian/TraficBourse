@@ -366,6 +366,23 @@ describe("US #9 notes — supply chain", () => {
       expect(update?.schedule?.interval, ecosystem).toBe("weekly");
     }
   });
+
+  it("given the pinned stack (Next.js 15, Node 22), when Dependabot runs, then it never proposes major npm or Docker upgrades", () => {
+    const config = parse(readFileSync(rootPath(".github", "dependabot.yml"), "utf8")) as {
+      updates?: {
+        "package-ecosystem"?: string;
+        ignore?: { "dependency-name"?: string; "update-types"?: string[] }[];
+      }[];
+    };
+
+    for (const ecosystem of ["npm", "docker"]) {
+      const update = config.updates?.find((entry) => entry["package-ecosystem"] === ecosystem);
+      const ignoresMajors = (update?.ignore ?? []).some(
+        (rule) => rule["dependency-name"] === "*" && (rule["update-types"] ?? []).includes("version-update:semver-major"),
+      );
+      expect(ignoresMajors, `${ecosystem} must ignore semver-major updates for every dependency`).toBe(true);
+    }
+  });
 });
 
 describe("US #9 notes — deployment docs", () => {
