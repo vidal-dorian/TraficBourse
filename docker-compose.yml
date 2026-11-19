@@ -5,7 +5,7 @@
 # - migrate: one-shot, applies the Drizzle migrations, then exits. web and jobs only start
 #   once it succeeded, so the schema is always up to date before anything uses it, and the
 #   two long-running processes never race to migrate the same file.
-# - web: Next.js server (pages, API), port 3000, reverse-proxied by Caddy.
+# - web: Next.js server (pages, API), port 3000 on 127.0.0.1, reverse-proxied by Caddy.
 # - jobs: node-cron scheduler (prices, missing-brief check, backup from phase 2).
 name: traficbourse
 
@@ -48,7 +48,10 @@ services:
       dockerfile: Dockerfile
     command: ["node", "server.js"]
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      # Loopback only: the sole way in is Cloudflare Tunnel -> Caddy on the host. Docker's own
+      # iptables rules bypass ufw, so publishing on 0.0.0.0 would let anyone on the LAN (or
+      # through a port-forward / routable IPv6) skip Cloudflare Access and rate limiting.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully

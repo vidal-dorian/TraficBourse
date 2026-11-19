@@ -11,7 +11,7 @@ restarts. Nothing here is run by the agent.
 | Service | Command | Role |
 | --- | --- | --- |
 | `migrate` | `node dist/lib/db/migrate.js` | One-shot: applies the database migrations, then exits. `web` and `jobs` only start once it succeeded. |
-| `web` | `node server.js` | Next.js server on port 3000 (`WEB_PORT` on the host), health check on `/api/health`. |
+| `web` | `node server.js` | Next.js server on port 3000, published on `127.0.0.1:WEB_PORT` on the host only, health check on `/api/health`. |
 | `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. |
 
 The SQLite database is the file `/data/bourse.db` inside the containers, bind-mounted from
@@ -83,6 +83,13 @@ and a `.env` copied from `.env.example`. Variables read by Compose:
 | `IMAGE_TAG` | `latest` | Image tag to run |
 | `PLATFORM` | `linux/arm64` | Image platform (`linux/amd64` on an x86 machine) |
 | `WEB_PORT` | `3000` | Host port of `web` |
+| `WEB_BIND` | `127.0.0.1` | Host address `web` is published on. Must stay `127.0.0.1` behind the host Caddy |
+
+`WEB_BIND` keeps the app reachable only from the Pi itself, so every request goes through
+Cloudflare Tunnel and Caddy. Do not set it to `0.0.0.0` or a LAN address: Docker writes its
+own iptables rules ahead of ufw, so anyone on the LAN (or through a router port-forward or a
+routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudflare Access on
+`/admin` and the rate limit on `/api/mcp`.
 
 The same `.env` is passed to the containers (secrets such as `MCP_TOKEN` go there later).
 Never commit it. If the GHCR package is private, log in once with
