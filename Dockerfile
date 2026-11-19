@@ -5,7 +5,7 @@
 #    only one that matters, better-sqlite3's `node-gyp rebuild`, would need a C++ toolchain
 #    just to fall back on the prebuilt binaries the package already ships (linux x64/arm64,
 #    glibc and musl). Other native packages come as prebuilt optional dependencies.
-FROM node:22-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
@@ -18,7 +18,7 @@ COPY . .
 RUN npm run build && npm run build:scripts
 
 # 3. Runtime: only what the three services run, as the unprivileged `node` user (uid 1000).
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
