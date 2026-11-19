@@ -1,8 +1,12 @@
 # Deploying on the Pi
 
-How to run TraficBourse on the Raspberry Pi with Docker Compose. CI builds the `linux/arm64`
-image and pushes it to GHCR (`ghcr.io/vidal-dorian/traficbourse`); the Pi only pulls and
-restarts. Nothing here is run by the agent.
+How to run TraficBourse on the Raspberry Pi with Docker Compose. Nothing here is run by the
+agent.
+
+There is no CI workflow yet: the one that builds the `linux/arm64` image and pushes it to
+GHCR (`ghcr.io/vidal-dorian/traficbourse`), with its tags, comes with story #9. Until then,
+the image is built on the Pi itself from the repository (section 5). Pulling, updating and
+rolling back from GHCR are described at the end, under [With the CI image](#with-the-ci-image-story-9).
 
 ## The stack
 
@@ -74,13 +78,14 @@ not create it, so the database never silently lands on the USB key if the disk i
 
 ## 4. Configure
 
-In a folder on the Pi (for example `/mnt/data/apps/traficbourse`), put `docker-compose.yml`
-and a `.env` copied from `.env.example`. Variables read by Compose:
+Clone the repository on the Pi (for example in `/mnt/data/apps/traficbourse`): the local
+build needs the whole source, not only `docker-compose.yml`. Next to `docker-compose.yml`,
+put a `.env` copied from `.env.example`. Variables read by Compose:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `BOURSE_DATA_DIR` | `/mnt/data/bourse` | Host folder of the SQLite file |
-| `IMAGE_TAG` | `latest` | Image tag to run |
+| `IMAGE_TAG` | `latest` | Image tag to build or run |
 | `PLATFORM` | `linux/arm64` | Image platform (`linux/amd64` on an x86 machine) |
 | `WEB_PORT` | `3000` | Host port of `web` |
 | `WEB_BIND` | `127.0.0.1` | Host address `web` is published on. Must stay `127.0.0.1` behind the host Caddy |
@@ -92,24 +97,31 @@ routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudfla
 `/admin` and the rate limit on `/api/mcp`.
 
 The same `.env` is passed to the containers (secrets such as `MCP_TOKEN` go there later).
-Never commit it. If the GHCR package is private, log in once with
-`docker login ghcr.io` (a GitHub token with `read:packages`).
+Never commit it.
 
-## 5. Start
+## 5. Build and start
+
+From the clone on the Pi:
 
 ```bash
-docker compose pull
+docker compose build
 docker compose up -d
 docker compose ps -a                 # web healthy, jobs running, migrate exited (0)
 curl -s http://127.0.0.1:3000/api/health
 ```
+
+Only `web` has a `build:` section. The image it builds is tagged with the shared `image:`
+name (`ghcr.io/vidal-dorian/traficbourse:latest`, or `IMAGE_TAG`), so `migrate` and `jobs`
+run that same local image. Do not run `docker compose pull` yet: there is no image on GHCR
+before the CI workflow, and the pull of `migrate` and `jobs` fails.
 
 `web` and `jobs` restart on their own after a crash or a reboot (`restart: unless-stopped`).
 
 ## Update
 
 ```bash
-docker compose pull && docker compose up -d
+git pull
+docker compose build && docker compose up -d
 docker image prune -f                # drop the old images
 ```
 
@@ -124,21 +136,41 @@ docker compose logs --tail 100 jobs
 
 ## Roll back
 
-Set a previous tag, either in `.env` (`IMAGE_TAG=<tag>`) or for one command:
+Without CI there are no earlier image tags: check out the previous commit and rebuild.
 
 ```bash
-IMAGE_TAG=<previous-tag> docker compose up -d
+git checkout <previous-commit>
+docker compose build && docker compose up -d
 ```
 
 Migrations only go forward: if the faulty version changed the schema, restore a backup of
 `bourse.db` (taken with `docker compose stop` first) before starting the older image.
 
-## Build locally (without CI)
+## On an x86 machine
 
 ```bash
-docker compose build                               # on the Pi
-PLATFORM=linux/amd64 docker compose up -d --build  # on an x86 machine
+PLATFORM=linux/amd64 docker compose up -d --build
 ```
 
 On a machine without the data disk, point `BOURSE_DATA_DIR` to an existing folder writable by
 uid 1000 (see [README.md](./README.md#docker)).
+
+## With the CI image (story #9)
+
+Once the CI workflow builds the `linux/arm64` image and pushes it to GHCR, the Pi no longer
+builds: it only pulls and restarts. If the GHCR package is private, log in once with
+`docker login ghcr.io` (a GitHub token with `read:packages`).
+
+Start and update:
+
+```bash
+docker compose pull && docker compose up -d
+docker image prune -f                # drop the old images
+```
+
+Roll back by setting a previous tag pushed by CI, either in `.env` (`IMAGE_TAG=<tag>`) or for
+one command (the migration warning above still applies):
+
+```bash
+IMAGE_TAG=<previous-tag> docker compose up -d
+```
