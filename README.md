@@ -62,7 +62,13 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 
 Any failure answers `403` with a short « Accès refusé. » and `Cache-Control: no-store`, whatever the reason. A missing or invalid Access setting also answers `403` (fail closed) and logs the problem on the server.
 
-To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `.env` and run `npm run dev`. The flag has no effect when `NODE_ENV=production` (`npm run build` / `npm run start`, the Docker image).
+To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `.env` and run `npm run dev`. The flag has no effect when `NODE_ENV=production` (`npm run start` after `npm run build`, and any production run): a stray `ADMIN_AUTH_DISABLED=true` there only logs a warning and the check stays on. Without the flag, a local `/admin` answers `403`, since no Access token reaches the app.
+
+### Cloudflare Access setup (manual, done once in the Zero Trust dashboard)
+
+1. Create a self-hosted Access application for the site's host name, restricted to the path `admin`, with an Allow policy on the owner's e-mail (one-time code login).
+2. Copy the application's Audience (AUD) tag into `CF_ACCESS_AUD`, the team domain (`<team>.cloudflareaccess.com`) into `CF_ACCESS_TEAM_DOMAIN`, and the allowed e-mail(s) into `ADMIN_EMAILS` (same list as the Access policy).
+3. Later, when `/api/mcp` exists (MCP auth story), add a Bypass for that path: Claude cannot pass Access, so the app protects that route itself (`CLAUDE.md` §8).
 
 ## Layout
 
