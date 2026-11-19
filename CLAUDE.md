@@ -241,6 +241,8 @@ Server-side rules beyond Zod:
   - `npm run dev` / `npm run build` / `npm run start`: Next.js dev server, production build, production server.
   - `npm run lint` (ESLint), `npm test` (Vitest, `tests/**/*.test.{ts,tsx}`), `npm run typecheck` (`tsc --noEmit`).
   - `npm run db:generate`: new Drizzle migration from `src/lib/db/schema.ts`. `npm run db:migrate`: applies the migrations to the SQLite file at `DATABASE_PATH` (default `./data/bourse.db`, see `.env.example`), in WAL mode.
+  - `npm run build:scripts`: bundles the migration runner and the jobs entrypoint into `dist/` with esbuild (used by the Docker image, where `tsx` is not shipped).
+  - Docker: `docker compose up -d` runs the `migrate` (one-shot), `web` and `jobs` services from one image (`PLATFORM=linux/amd64` on x86; see `DEPLOY.md`). `DOCKER_TESTS=1 npx vitest run tests/docker.integration.test.ts` runs the end-to-end Docker tests, skipped otherwise.
 - Local dev: a seed script with fake instruments, prices and one sample brief so every page renders without Claude. Use the MCP Inspector for manual tool testing.
 - UI: mobile-first (Dorian reads on his phone in the morning), French copy, minimal Tailwind until the design system is chosen (see §12).
 
