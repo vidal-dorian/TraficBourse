@@ -96,11 +96,13 @@ Only two inbound flows: visitors/Dorian through Cloudflare, Claude through `/api
     /api/mcp/route.ts             → MCP endpoint
     /api/health/route.ts
   /lib
+    /auth       cloudflare-access.ts (Access JWT check for /admin)
     /db         schema.ts, client.ts, migrate.ts, migrations/
     /schemas    brief.ts (Zod), chart-spec.ts, ...
     /mcp        server.ts, tools/*.ts, auth.ts
     /market     provider.ts, yahoo.ts, twelvedata.ts, snapshot.ts
     /render     markdown.ts (sanitized)
+  middleware.ts → Access check, matcher `/admin` and `/admin/:path*` only
   /jobs         index.ts (cron entrypoint), prices.ts, missing-brief.ts, backup.ts
 /public/illustrations/<category>.svg
 /tests
@@ -206,7 +208,7 @@ Server-side rules beyond Zod:
 ## 8. Security
 
 - **Public pages**: read-only, identical for every visitor. No login code.
-- **`/admin`**: protected by a Cloudflare Access application on that path (email one-time code). The app may additionally check the `Cf-Access-Jwt-Assertion` header.
+- **`/admin`**: protected by a Cloudflare Access application on that path (email one-time code). The app also checks the `Cf-Access-Jwt-Assertion` header (`src/middleware.ts`): RS256 against the team certs, issuer, audience `CF_ACCESS_AUD`, `email` in `ADMIN_EMAILS`; any failure or missing config → 403 (fail closed). `ADMIN_AUTH_DISABLED=true` skips the check in local dev only, never when `NODE_ENV=production`.
 - **`/api/mcp`**: bypassed in Cloudflare Access (Claude cannot pass Access), so the app protects it itself:
   - **Option A (preferred):** static `Authorization: Bearer <token>` configured in the Claude custom connector ("Request headers", currently a beta feature not open to every account). Constant-time comparison against `MCP_TOKEN` from env.
   - **Option B (if A is unavailable):** single-user OAuth inside the app (MCP SDK auth helpers, login page with Dorian's password). Larger ticket.
