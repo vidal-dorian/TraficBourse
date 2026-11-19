@@ -12,7 +12,7 @@ restarts. Nothing here is run by the agent.
 | --- | --- | --- |
 | `migrate` | `node dist/lib/db/migrate.js` | One-shot: applies the database migrations, then exits. `web` and `jobs` only start once it succeeded. |
 | `web` | `node server.js` | Next.js server on port 3000, published on `127.0.0.1:WEB_PORT` on the host only, health check on `/api/health`. |
-| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. |
+| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. For now it only logs an hourly heartbeat; the real jobs come in phase 2. |
 
 The SQLite database is the file `/data/bourse.db` inside the containers, bind-mounted from
 `BOURSE_DATA_DIR` on the host (default `/mnt/data/bourse`). Every container logs with the
@@ -100,7 +100,7 @@ Never commit it. If the GHCR package is private, log in once with
 ```bash
 docker compose pull
 docker compose up -d
-docker compose ps                    # web healthy, jobs running, migrate exited (0)
+docker compose ps -a                 # web healthy, jobs running, migrate exited (0)
 curl -s http://127.0.0.1:3000/api/health
 ```
 
@@ -139,3 +139,6 @@ Migrations only go forward: if the faulty version changed the schema, restore a 
 docker compose build                               # on the Pi
 PLATFORM=linux/amd64 docker compose up -d --build  # on an x86 machine
 ```
+
+On a machine without the data disk, point `BOURSE_DATA_DIR` to an existing folder writable by
+uid 1000 (see [README.md](./README.md#docker)).
