@@ -30,6 +30,8 @@ Settings are read from the environment. `.env.example` lists them; copy it to `.
 
 The database is always opened in WAL mode with a busy timeout, so the web and jobs processes can share the file.
 
+Docker Compose reads a few more variables (all optional, commented out in `.env.example`): `BOURSE_DATA_DIR` (host folder of the database, default `/mnt/data/bourse`), `IMAGE_TAG` (default `latest`), `PLATFORM` (default `linux/arm64`), `WEB_PORT` (default `3000`) and `WEB_BIND` (default `127.0.0.1`). They are described in [`DEPLOY.md`](./DEPLOY.md#4-configure). In the containers, `DATABASE_PATH` is always `/data/bourse.db`, inside the `BOURSE_DATA_DIR` mount.
+
 ## npm scripts
 
 | Script | What it does |
@@ -73,7 +75,10 @@ docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 `docker compose up -d` runs the stack described in [`DEPLOY.md`](./DEPLOY.md). On an x86 machine, build for its own platform:
 
 ```bash
-mkdir -p data && PLATFORM=linux/amd64 BOURSE_DATA_DIR=./data docker compose up -d --build
+mkdir -p data && sudo chown 1000:1000 data   # the containers run as uid 1000
+PLATFORM=linux/amd64 BOURSE_DATA_DIR=./data docker compose up -d --build
 ```
+
+The `migrate` service applies the migrations and exits, then `web` (http://127.0.0.1:3000, bound to loopback only) and `jobs` start. `docker compose logs -f` follows the logs, `docker compose down` stops the stack; the database stays in `./data`.
 
 The end-to-end Docker tests are skipped by default; run them with `DOCKER_TESTS=1 npx vitest run tests/docker.integration.test.ts` (`PLATFORM` defaults to the host platform).
