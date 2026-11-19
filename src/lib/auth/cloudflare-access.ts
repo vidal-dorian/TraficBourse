@@ -96,6 +96,8 @@ export async function verifyAccessToken(token: string | null | undefined, option
       issuer: `https://${options.teamDomain}`,
       audience: options.audience,
       algorithms: ["RS256"],
+      // jose only checks `exp` when present: require it so a token can never live forever.
+      requiredClaims: ["exp", "email"],
     });
     const email = typeof payload.email === "string" ? payload.email.trim() : "";
     if (!email || !admins.has(email.toLowerCase())) return { ok: false, reason: "not_admin" };
