@@ -3,10 +3,12 @@
 How to run TraficBourse on the Raspberry Pi with Docker Compose. Nothing here is run by the
 agent.
 
-There is no CI workflow yet: the one that builds the `linux/arm64` image and pushes it to
-GHCR (`ghcr.io/vidal-dorian/traficbourse`), with its tags, comes with story #9. Until then,
-the image is built on the Pi itself from the repository (section 5). Pulling, updating and
-rolling back from GHCR are described at the end, under [With the CI image](#with-the-ci-image-story-9).
+The Pi does not compile anything. Every push on `main` runs the CI workflow
+(`.github/workflows/ci.yml`): once lint, typecheck, tests and build pass, it builds the
+`linux/arm64` image and pushes it to GHCR as `ghcr.io/vidal-dorian/traficbourse`, tagged
+`latest` and with the full commit SHA. A failing check publishes nothing; pull requests run
+the checks only. The Pi then pulls the image and restarts the stack. Building the image on
+the Pi itself remains possible as a fallback ([Build locally](#build-locally-fallback)).
 
 ## The stack
 
@@ -78,14 +80,14 @@ not create it, so the database never silently lands on the USB key if the disk i
 
 ## 4. Configure
 
-Clone the repository on the Pi (for example in `/mnt/data/apps/traficbourse`): the local
-build needs the whole source, not only `docker-compose.yml`. Next to `docker-compose.yml`,
-put a `.env` copied from `.env.example`. Variables read by Compose:
+Put `docker-compose.yml` on the Pi (for example in `/mnt/data/apps/traficbourse`, a clone of
+the repository is the simplest way to keep it up to date). Next to it, put a `.env` copied
+from `.env.example`. Variables read by Compose:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `BOURSE_DATA_DIR` | `/mnt/data/bourse` | Host folder of the SQLite file |
-| `IMAGE_TAG` | `latest` | Image tag to build or run |
+| `IMAGE_TAG` | `latest` | Image tag to pull and run: `latest` or a full commit SHA |
 | `PLATFORM` | `linux/arm64` | Image platform (`linux/amd64` on an x86 machine) |
 | `WEB_PORT` | `3000` | Host port of `web` |
 | `WEB_BIND` | `127.0.0.1` | Host address `web` is published on. Must stay `127.0.0.1` behind the host Caddy |
@@ -99,29 +101,50 @@ routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudfla
 The same `.env` is passed to the containers (secrets such as `MCP_TOKEN` go there later).
 Never commit it.
 
-## 5. Build and start
+## 5. Log in to GHCR
 
-From the clone on the Pi:
+The repository is private, so the GHCR package is private too: the Pi must log in once
+before it can pull. The first push from CI creates the package and links it to the
+repository (the workflow token pushes it, and the image carries the
+`org.opencontainers.image.source` label); check under the repository's "Packages" that it is
+there.
+
+1. On GitHub, create a **classic** personal access token (Settings → Developer settings →
+   Personal access tokens → Tokens (classic)) with the `read:packages` scope only, and an
+   expiry date. GHCR does not accept fine-grained tokens (at the time of writing).
+2. On the Pi, as the user that runs `docker compose`:
+
+   ```bash
+   docker login ghcr.io -u vidal-dorian --password-stdin   # paste the token, then Ctrl-D
+   ```
+
+Docker stores the credentials in `~/.docker/config.json` on the Pi. The token never goes in
+the repository, in `.env` or in a shell history. When it expires, create a new one and log in
+again.
+
+Alternative: make the package public (package settings → Change visibility → Public); the Pi
+then pulls without logging in. The image contains the built application, so anyone could
+download it, even though the repository stays private.
+
+## 6. Start
 
 ```bash
-docker compose build
+docker compose pull
 docker compose up -d
 docker compose ps -a                 # web healthy, jobs running, migrate exited (0)
 curl -s http://127.0.0.1:3000/api/health
 ```
 
-Only `web` has a `build:` section. The image it builds is tagged with the shared `image:`
-name (`ghcr.io/vidal-dorian/traficbourse:latest`, or `IMAGE_TAG`), so `migrate` and `jobs`
-run that same local image. Do not run `docker compose pull` yet: there is no image on GHCR
-before the CI workflow, and the pull of `migrate` and `jobs` fails.
-
-`web` and `jobs` restart on their own after a crash or a reboot (`restart: unless-stopped`).
+`migrate`, `web` and `jobs` run the same image, `ghcr.io/vidal-dorian/traficbourse:latest`
+(or the tag in `IMAGE_TAG`). `web` and `jobs` restart on their own after a crash or a reboot
+(`restart: unless-stopped`).
 
 ## Update
 
+After a push on `main`, wait for the CI run to finish (Actions tab), then:
+
 ```bash
-git pull
-docker compose build && docker compose up -d
+docker compose pull && docker compose up -d
 docker image prune -f                # drop the old images
 ```
 
@@ -136,15 +159,43 @@ docker compose logs --tail 100 jobs
 
 ## Roll back
 
-Without CI there are no earlier image tags: check out the previous commit and rebuild.
+Every image pushed by CI is also tagged with its full commit SHA (40 characters, as shown in
+the commit list on GitHub or on the package page). Run a previous one, either for one command
+or by setting `IMAGE_TAG=<commit-sha>` in `.env`:
 
 ```bash
-git checkout <previous-commit>
+IMAGE_TAG=<previous-commit-sha> docker compose up -d
+```
+
+Remove `IMAGE_TAG` from `.env` to follow `latest` again. Migrations only go forward: if the
+faulty version changed the schema, restore a backup of `bourse.db` (taken with
+`docker compose stop` first) before starting the older image.
+
+## CI cost
+
+GitHub's hosted arm64 runners are not included for free in private repositories (at the time
+of writing), so the publish job builds the `linux/arm64` image on a standard x64 runner under
+QEMU emulation, which is several times slower than a native build. Those minutes count
+against the Actions quota of the account (2,000 minutes a month on GitHub Free for private
+repositories, at the time of writing). To keep them down, the build reuses the
+GitHub Actions cache (`cache-from`/`cache-to` `type=gha`), only `main` publishes (pull
+requests run the checks, without building the image), and a newer push on a pull request
+cancels the run in progress. Watch the duration of the first runs in the Actions tab and the
+usage under Settings → Billing. If it gets too expensive, a native arm64 runner (hosted or
+self-hosted) would replace QEMU.
+
+## Build locally (fallback)
+
+Without GHCR (CI down, or a test of uncommitted changes), the image can still be built on the
+Pi from a clone of the repository. Only `web` has a `build:` section; the image it builds is
+tagged with the shared `image:` name, so `migrate` and `jobs` run that same local image:
+
+```bash
+git pull
 docker compose build && docker compose up -d
 ```
 
-Migrations only go forward: if the faulty version changed the schema, restore a backup of
-`bourse.db` (taken with `docker compose stop` first) before starting the older image.
+The next `docker compose pull` replaces it with the CI image.
 
 ## On an x86 machine
 
@@ -152,25 +203,6 @@ Migrations only go forward: if the faulty version changed the schema, restore a 
 PLATFORM=linux/amd64 docker compose up -d --build
 ```
 
-On a machine without the data disk, point `BOURSE_DATA_DIR` to an existing folder writable by
-uid 1000 (see [README.md](./README.md#docker)).
-
-## With the CI image (story #9)
-
-Once the CI workflow builds the `linux/arm64` image and pushes it to GHCR, the Pi no longer
-builds: it only pulls and restarts. If the GHCR package is private, log in once with
-`docker login ghcr.io` (a GitHub token with `read:packages`).
-
-Start and update:
-
-```bash
-docker compose pull && docker compose up -d
-docker image prune -f                # drop the old images
-```
-
-Roll back by setting a previous tag pushed by CI, either in `.env` (`IMAGE_TAG=<tag>`) or for
-one command (the migration warning above still applies):
-
-```bash
-IMAGE_TAG=<previous-tag> docker compose up -d
-```
+CI only publishes `linux/arm64`, so an x86 machine always builds locally. On a machine
+without the data disk, point `BOURSE_DATA_DIR` to an existing folder writable by uid 1000
+(see [README.md](./README.md#docker)).
