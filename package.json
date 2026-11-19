@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:scripts": "esbuild src/lib/db/migrate.ts src/jobs/index.ts --bundle --platform=node --target=node22 --format=cjs --outbase=src --outdir=dist --external:better-sqlite3 --external:node-cron",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
@@ -23,6 +24,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.29",
     "tailwindcss": "^4.3.5",
