@@ -20,17 +20,30 @@ import { z } from "zod";
 import { recordToolCall, shortError } from "./audit";
 import { checkMcpAuth } from "./auth";
 
+type ToolArgs<Shape extends z.ZodRawShape> = z.infer<z.ZodObject<Shape>>;
+type ToolResult = CallToolResult | Promise<CallToolResult>;
+
 /**
  * A tool exposed over MCP. `inputSchema` is a Zod raw shape (as taken by the SDK's
- * `registerTool`); `handler` receives the validated arguments.
+ * `registerTool`); `handler` receives the validated arguments. A tool that needs them exactly as
+ * received too (before defaults and transforms, e.g. to store a payload verbatim) sets
+ * `rawArguments: true` and gets them as a second argument.
  */
 export type McpTool<Shape extends z.ZodRawShape = z.ZodRawShape> = {
   name: string;
   description: string;
   inputSchema: Shape;
-  // Method syntax keeps the parameter bivariant, so tools of any shape fit in one registry.
-  handler(args: z.infer<z.ZodObject<Shape>>): CallToolResult | Promise<CallToolResult>;
-};
+} & (
+  | {
+      rawArguments?: false;
+      // Method syntax keeps the parameter bivariant, so tools of any shape fit in one registry.
+      handler(args: ToolArgs<Shape>): ToolResult;
+    }
+  | {
+      rawArguments: true;
+      handler(args: ToolArgs<Shape>, rawArguments: Record<string, unknown>): ToolResult;
+    }
+);
 
 export type McpHandlerOptions = {
   tools: readonly McpTool[];
@@ -78,7 +91,8 @@ function registerTools(tools: readonly McpTool[]): Map<string, RegisteredTool> {
   const registry = new Map<string, RegisteredTool>();
   for (const tool of tools) {
     if (registry.has(tool.name)) throw new Error(`MCP tool ${tool.name} is registered twice`);
-    const input = z.object(tool.inputSchema);
+    // Strict: a misspelt argument (e.g. `dryRun` for `dry_run`) is an error, never silently ignored.
+    const input = z.strictObject(tool.inputSchema);
     // Same conversion as the SDK's `registerTool`: draft-7, input side of transforms.
     const inputSchema = z.toJSONSchema(input, { target: "draft-7", io: "input" }) as Tool["inputSchema"];
     registry.set(tool.name, { tool, input, definition: { name: tool.name, description: tool.description, inputSchema } });
@@ -105,11 +119,13 @@ async function callTool(registry: Map<string, RegisteredTool>, params: CallToolR
     return { result: errorResult(`Outil inconnu : ${params.name}.`), auditError: "Unknown tool" };
   }
 
-  const parsed = await registered.input.safeParseAsync(params.arguments ?? {});
+  const rawArguments = params.arguments ?? {};
+  const parsed = await registered.input.safeParseAsync(rawArguments);
   if (!parsed.success) return invalidArguments(params.name, parsed.error);
 
   try {
-    const result = await registered.tool.handler(parsed.data);
+    const { tool } = registered;
+    const result = await (tool.rawArguments ? tool.handler(parsed.data, rawArguments) : tool.handler(parsed.data));
     const auditError = result.isError ? shortError(firstText(result), "Tool returned an error result") : null;
     return { result, auditError };
   } catch (error) {

@@ -1,5 +1,5 @@
-// Production tool registry served on /api/mcp (CLAUDE.md §7). Empty until the business tools
-// arrive (publish_brief and get_recent_briefs in US #13 and #14).
+// Production tool registry served on /api/mcp (CLAUDE.md §7).
 import type { McpTool } from "../server";
+import { publishBriefTool } from "./publish-brief";
 
-export const mcpTools: readonly McpTool[] = [];
+export const mcpTools: readonly McpTool[] = [publishBriefTool];

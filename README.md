@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` and its `mcp_audit` log; it serves no business tool yet (`publish_brief` and `get_recent_briefs` come next). No business tables yet.
+Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp`, its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables (`get_recent_briefs` comes next; no page shows a brief yet).
 
 ## Prerequisites
 
@@ -66,7 +66,8 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 
 - **Auth** (`CLAUDE.md` §8, option A): every request on the methods it serves (POST, GET, DELETE, and HEAD through GET) must carry `Authorization: Bearer <MCP_TOKEN>`. The token is compared in constant time (both sides hashed with SHA-256, then `timingSafeEqual`). A missing or wrong token answers `401` with a short « Non autorisé. » and `Cache-Control: no-store`; an unset `MCP_TOKEN` answers `401` too (fail closed) and logs the problem on the server, never the token. `src/middleware.ts` does not run on this route. Next.js answers OPTIONS (204) and PUT or PATCH (405) by itself, before any MCP handling.
 - **Methods**: once authenticated, only `POST` is served; `GET` and `DELETE` answer `405` (no standalone SSE stream, no session to end).
-- **Tools**: the server is built from a tool registry (`src/lib/mcp/tools/index.ts`), empty for now; `tools/list` answers an empty list rather than an error.
+- **Tools**: the server is built from a tool registry (`src/lib/mcp/tools/index.ts`); an empty registry lists nothing rather than failing. A handler gets the validated arguments; a tool that sets `rawArguments: true` also gets, as a second argument, the arguments exactly as received (before defaults).
+- **`publish_brief(date, kind, payload, dry_run?)`**: `date` is `YYYY-MM-DD` (a real calendar date), `kind` is `daily` or `weekly`, `payload` follows `BriefPayload` (`src/lib/schemas/brief.ts`: `tldr`, `mood`, 1 to 5 news items). Objects are strict, and so are the tool arguments: a key not handled yet (`stockNotes`, `concept`, `storylineUpdates`, `chart`) or a misspelt argument (`dryRun` for `dry_run`) is an error. Every field is bounded (texts by length, `sourceName` 120 characters, `sourceUrl` an absolute http(s) URL of 2048 characters at most, with no user info before an `@`, at most 10 `tickers` of 1 to 20 characters among letters, digits and `. ^ = -`), so a call cannot store an oversized brief. Invalid arguments come back as one error result listing every issue at once, one `path : message` line each (e.g. `payload.news.0.sourceUrl : …`), and write nothing. `dry_run: true` validates and writes nothing. Otherwise the brief of (`date`, `kind`) is written as `published` with its news items and its raw JSON payload, in one transaction: republishing updates the same `briefs` row (same id) and replaces its news items, and a failure leaves the previous brief intact. The result is a short French text plus `structuredContent` `{ dryRun, date, kind, newsCount }`, with `briefId` when written. Markdown is stored as received. Tables: `briefs` (unique on `date` + `kind`, `status` draft or published, `raw_payload`, `published_at`) and `news_items` (`rank` in payload order, unique per brief; `tickers` as JSON; deleted with their brief). The `chart_spec` column of `CLAUDE.md` §6 comes with the chart ticket.
 - **Audit**: every `tools/call` adds one row to `mcp_audit` (`tool`, `ok`, `error`, `duration_ms`, `at`), for successes, error results, thrown errors, unknown tools and invalid arguments alike. The error is one line of at most 200 characters; arguments and results are never stored. A failing audit write is logged on the server and does not affect the call. Invalid arguments come back to the client as one `path : message` line per issue.
 
 ## Admin access
@@ -95,7 +96,9 @@ src/lib/auth/                 Access token verification (jose)
 src/lib/mcp/server.ts         MCP handler: auth, tool registry, audited tools/call
 src/lib/mcp/auth.ts           bearer token check against MCP_TOKEN
 src/lib/mcp/audit.ts          mcp_audit writes
-src/lib/mcp/tools/            production tool registry (empty for now)
+src/lib/mcp/tools/            production tool registry (publish_brief)
+src/lib/schemas/brief.ts      Zod contract of a brief payload, shared by the MCP tools (enum values in brief-enums.ts)
+src/lib/briefs/publish.ts     transactional publication of a brief and its news items
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
