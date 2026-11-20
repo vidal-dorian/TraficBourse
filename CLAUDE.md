@@ -152,7 +152,7 @@ No delete tool is exposed.
 
 ### `publish_brief` payload (starting point — refine in phase 1)
 
-Implemented today (`src/lib/schemas/brief.ts`, US #13): `tldr`, `mood` and `news` (1 to 5 items with `title`, `summary`, `whyItMatters`, `impact`, `category`, `tickers`, `sourceName`, `sourceUrl`). `stockNotes`, `concept`, `storylineUpdates` and a news item's `chart` come with later tickets; until then objects are strict, so sending them is a validation error. Also enforced: required texts not blank, `sourceUrl` an absolute http(s) URL (≤ 2048 chars), `sourceName` ≤ 120, at most 10 `tickers` of 1–20 chars (letters, digits, `. ^ = -`).
+Implemented today (`src/lib/schemas/brief.ts`, US #13): `tldr`, `mood` and `news` (1 to 5 items with `title`, `summary`, `whyItMatters`, `impact`, `category`, `tickers`, `sourceName`, `sourceUrl`). `stockNotes`, `concept`, `storylineUpdates` and a news item's `chart` come with later tickets; until then objects are strict, so sending them is a validation error; unknown top-level tool arguments are rejected too. Also enforced: required texts not blank, `sourceUrl` an absolute http(s) URL (≤ 2048 chars, no `user@` part), `sourceName` ≤ 120, at most 10 `tickers` of 1–20 chars (letters, digits, `. ^ = -`).
 
 ```ts
 const Category = z.enum(["monde", "geopolitique", "energie", "macro", "taux", "entreprises", "crypto"]);

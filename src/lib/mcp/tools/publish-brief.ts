@@ -14,6 +14,11 @@ const inputSchema = {
   dry_run: z.boolean().default(false).describe("true : valide le contenu sans rien écrire."),
 };
 
+/** "1 actualité", "3 actualités". */
+function newsLabel(count: number): string {
+  return `${count} ${count === 1 ? "actualité" : "actualités"}`;
+}
+
 export const publishBriefTool: McpTool<typeof inputSchema> = {
   name: "publish_brief",
   description:
@@ -30,7 +35,7 @@ export const publishBriefTool: McpTool<typeof inputSchema> = {
           {
             type: "text",
             text:
-              `Validation réussie : le brief ${kind} du ${date} et ses ${newsCount} actualités sont valides. ` +
+              `Validation réussie : le brief ${kind} du ${date} et ses ${newsLabel(newsCount)} sont valides. ` +
               "Rien n'a été écrit ; rappelez publish_brief avec dry_run = false pour publier.",
           },
         ],
@@ -42,7 +47,7 @@ export const publishBriefTool: McpTool<typeof inputSchema> = {
     const rawPayload = JSON.stringify(rawArguments.payload);
     const { briefId } = publishBrief(getDb(), { date, kind, payload, rawPayload });
     return {
-      content: [{ type: "text", text: `Brief ${kind} du ${date} publié avec ${newsCount} actualités.` }],
+      content: [{ type: "text", text: `Brief ${kind} du ${date} publié avec ${newsLabel(newsCount)}.` }],
       structuredContent: { dryRun, briefId, date, kind, newsCount },
     };
   },

@@ -29,10 +29,19 @@ export type Category = z.infer<typeof Category>;
 export const Mood = z.enum(MOODS);
 export type Mood = z.infer<typeof Mood>;
 
-/** Absolute http(s) URL only: it is rendered as a link (no javascript:, data:, ftp:, relative). */
+/**
+ * Absolute http(s) URL only: it is rendered as a link (no javascript:, data:, ftp:, relative).
+ * No user info either: `https://reuters.com@evil.example` reads like Reuters but opens another host.
+ */
 const SourceUrl = z
   .url({ protocol: /^https?$/, error: "URL absolue en http ou https attendue." })
-  .max(2048, "URL trop longue : 2048 caractères au plus.");
+  .max(2048, "URL trop longue : 2048 caractères au plus.")
+  .refine((value) => {
+    // Zod runs this check even when the URL check above failed: leave that case to its message.
+    if (!URL.canParse(value)) return true;
+    const url = new URL(value);
+    return url.username === "" && url.password === "";
+  },"URL sans identifiant attendue (rien avant « @ » dans l'adresse).");
 
 /** A ticker as the market-data provider spells it: "^FCHI", "EURUSD=X", "BTC-EUR", "MC.PA". */
 const Ticker = z

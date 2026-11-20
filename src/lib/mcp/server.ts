@@ -91,7 +91,8 @@ function registerTools(tools: readonly McpTool[]): Map<string, RegisteredTool> {
   const registry = new Map<string, RegisteredTool>();
   for (const tool of tools) {
     if (registry.has(tool.name)) throw new Error(`MCP tool ${tool.name} is registered twice`);
-    const input = z.object(tool.inputSchema);
+    // Strict: a misspelt argument (e.g. `dryRun` for `dry_run`) is an error, never silently ignored.
+    const input = z.strictObject(tool.inputSchema);
     // Same conversion as the SDK's `registerTool`: draft-7, input side of transforms.
     const inputSchema = z.toJSONSchema(input, { target: "draft-7", io: "input" }) as Tool["inputSchema"];
     registry.set(tool.name, { tool, input, definition: { name: tool.name, description: tool.description, inputSchema } });
