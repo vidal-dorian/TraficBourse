@@ -2,7 +2,8 @@
 // rereads the TL;DRs and news titles of the last days so as not to repeat the same news.
 //
 // The window is counted in calendar days back from today in Europe/Paris, today included:
-// briefs dated on or after `since` = today − `days` come back. An empty window is not an error.
+// briefs dated from `since` = today − `days` to today come back. Briefs dated after today are
+// left out, so the answer stays bounded at (days + 1) x 2 briefs. An empty window is not an error.
 import { z } from "zod";
 import { listRecentBriefs, type RecentBrief } from "@/lib/briefs/recent";
 import { parisToday, subtractDays } from "@/lib/dates/paris";
@@ -56,8 +57,9 @@ export const getRecentBriefsTool: McpTool<typeof inputSchema> = {
     "aujourd'hui (Europe/Paris), aujourd'hui inclus.",
   inputSchema,
   handler({ days }) {
-    const since = subtractDays(parisToday(new Date()), days);
-    const recent = listRecentBriefs(getDb(), since);
+    const today = parisToday(new Date());
+    const since = subtractDays(today, days);
+    const recent = listRecentBriefs(getDb(), { since, until: today });
     const window = `depuis le ${since} (${days} ${days === 1 ? "dernier jour" : "derniers jours"})`;
     const text =
       recent.length === 0

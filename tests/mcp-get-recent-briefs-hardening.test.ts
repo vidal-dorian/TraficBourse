@@ -3,9 +3,12 @@
 // from holding newlines. In the text for Claude, each stored value is flattened onto one quoted
 // line, so a stored value can never pass for an entry or a title line of the tool's own list,
 // and a fixed framing line says these are data, not instructions. `structuredContent` keeps the
-// values as stored (JSON already delimits them).
+// values as stored (JSON already delimits them). Briefs dated after today in Paris are never
+// returned: publish_brief accepts any calendar date, and without an upper bound such briefs would
+// come back on every later call, whatever `days` is.
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { validPayload } from "./fixtures/brief-payloads";
 import { seedBriefs, type SeedBrief } from "./helpers/briefs";
 import { connectClient, dispatch, makeMigratedDatabase, MCP_TEST_TOKEN, type RouteModule } from "./helpers/mcp";
 
@@ -79,5 +82,28 @@ describe("get_recent_briefs — stored texts in the answer for Claude", () => {
       since: "2026-11-13",
       briefs: [{ date: "2026-11-20", kind: "daily", tldr: INJECTED_TLDR, newsTitles: [INJECTED_TITLE, "Le pétrole se stabilise"] }],
     });
+  });
+});
+
+describe("get_recent_briefs — briefs dated after today", () => {
+  it("given briefs published for tomorrow and far-future dates, when I call get_recent_briefs, then only the briefs up to today come back", async () => {
+    await seedBriefs(databasePath, [PLAIN]);
+    const client = await connect();
+    for (const date of ["2026-11-21", "2030-01-01", "2099-05-05", "9999-12-31"]) {
+      const published = await client.callTool({
+        name: "publish_brief",
+        arguments: { date, kind: "daily", payload: validPayload() },
+      });
+      expect(published.isError).not.toBe(true);
+    }
+
+    for (const days of [1, 7, 30]) {
+      const result = await client.callTool({ name: "get_recent_briefs", arguments: { days } });
+
+      expect(result.isError).not.toBe(true);
+      const { briefs } = result.structuredContent as { briefs: { date: string }[] };
+      expect(briefs.map((brief) => brief.date)).toStrictEqual(days === 1 ? [] : ["2026-11-18"]);
+      for (const future of ["2026-11-21", "2030-01-01", "2099-05-05", "9999-12-31"]) expect(text(result)).not.toContain(future);
+    }
   });
 });

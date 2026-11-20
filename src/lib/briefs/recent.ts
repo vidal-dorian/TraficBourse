@@ -1,6 +1,6 @@
 // Rereading of the latest published briefs (CLAUDE.md §7, `get_recent_briefs`): only what the
 // Claude scheduled task needs to avoid repeating itself, the TL;DR and the news titles.
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { briefs, newsItems } from "@/lib/db/schema";
 import type { BriefKind } from "@/lib/schemas/brief";
@@ -13,16 +13,21 @@ export type RecentBrief = {
   newsTitles: string[];
 };
 
+/** Inclusive window of brief dates, both "YYYY-MM-DD". */
+export type RecentBriefsWindow = { since: string; until: string };
+
 /**
- * The published briefs dated `since` ("YYYY-MM-DD") or later, drafts left out. Most recent date
- * first; on the same date the weekly recap comes before the daily brief. Two queries whatever
- * the number of briefs: the briefs, then all their news titles.
+ * The published briefs dated from `since` to `until` included, drafts left out. The upper bound
+ * matters: publish_brief accepts any calendar date, so without it future-dated briefs would come
+ * back on every call, whatever the window. Most recent date first; on the same date the weekly
+ * recap comes before the daily brief. Two queries whatever the number of briefs: the briefs,
+ * then all their news titles.
  */
-export function listRecentBriefs(db: Db, since: string): RecentBrief[] {
+export function listRecentBriefs(db: Db, { since, until }: RecentBriefsWindow): RecentBrief[] {
   const rows = db
     .select({ id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr })
     .from(briefs)
-    .where(and(eq(briefs.status, "published"), gte(briefs.date, since)))
+    .where(and(eq(briefs.status, "published"), gte(briefs.date, since), lte(briefs.date, until)))
     .orderBy(desc(briefs.date), sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`)
     .all();
   if (rows.length === 0) return [];
