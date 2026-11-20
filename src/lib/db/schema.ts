@@ -14,3 +14,18 @@ export const appMeta = sqliteTable("app_meta", {
     .notNull()
     .default(sql`(unixepoch())`),
 });
+
+/**
+ * One row per MCP tool call (CLAUDE.md §7): which tool, whether it succeeded, a short error
+ * and how long it took. Never the call's arguments nor its result.
+ */
+export const mcpAudit = sqliteTable("mcp_audit", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tool: text("tool").notNull(),
+  ok: integer("ok", { mode: "boolean" }).notNull(),
+  error: text("error"),
+  durationMs: integer("duration_ms").notNull(),
+  at: integer("at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
