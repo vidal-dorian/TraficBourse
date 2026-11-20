@@ -88,3 +88,65 @@ export function failNewsItemInsertsTitled(path: string, title: string): void {
     false,
   );
 }
+
+/** A brief to seed: its news items are given by title only, in rank order. */
+export type SeedBrief = {
+  date: string;
+  kind: "daily" | "weekly";
+  /** Defaults to "published". */
+  status?: "published" | "draft";
+  tldr: string;
+  newsTitles: string[];
+};
+
+/** Summary, why-it-matters and source of every seeded news item: they must never come back from a read tool. */
+export const SEEDED_NEWS_DETAILS = {
+  summary: "Résumé détaillé qui ne doit jamais revenir dans la relecture des briefs.",
+  whyItMatters: "Explication pédagogique qui ne doit jamais revenir dans la relecture des briefs.",
+  impact: "Impact possible qui ne doit jamais revenir dans la relecture des briefs.",
+  sourceName: "Source de test",
+  sourceUrl: "https://example.com/source-ne-doit-pas-revenir",
+} as const;
+
+/**
+ * Writes `seeds` into the database file, in the given order (so row ids follow that order):
+ * published briefs through the app's own `publishBrief` (US #13), drafts with a plain insert, as
+ * no tool writes a draft yet.
+ *
+ * Call it before the app opens the database (before the first MCP call), like
+ * `failNewsItemInsertsTitled`: this connection is closed once the seeds are written.
+ */
+export async function seedBriefs(path: string, seeds: SeedBrief[]): Promise<void> {
+  const { drizzle } = await import("drizzle-orm/better-sqlite3");
+  const { openDatabase } = await import("../../src/lib/db/client");
+  const schema = await import("../../src/lib/db/schema");
+  const { publishBrief } = await import("../../src/lib/briefs/publish");
+  const { BriefPayload } = await import("../../src/lib/schemas/brief");
+
+  const sqlite = openDatabase(path);
+  try {
+    const db = drizzle(sqlite, { schema });
+    for (const seed of seeds) {
+      const raw = {
+        tldr: seed.tldr,
+        mood: "mitige",
+        news: seed.newsTitles.map((title) => ({ title, category: "macro", tickers: ["^FCHI"], ...SEEDED_NEWS_DETAILS })),
+      };
+      const payload = BriefPayload.parse(raw);
+      if ((seed.status ?? "published") === "published") {
+        publishBrief(db, { date: seed.date, kind: seed.kind, payload, rawPayload: JSON.stringify(raw) });
+        continue;
+      }
+      const { id } = db
+        .insert(schema.briefs)
+        .values({ date: seed.date, kind: seed.kind, status: "draft", tldr: seed.tldr, mood: "mitige", rawPayload: JSON.stringify(raw) })
+        .returning({ id: schema.briefs.id })
+        .get();
+      db.insert(schema.newsItems)
+        .values(payload.news.map((news, index) => ({ briefId: id, rank: index + 1, ...news })))
+        .run();
+    }
+  } finally {
+    sqlite.close();
+  }
+}
