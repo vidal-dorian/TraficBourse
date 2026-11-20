@@ -3,10 +3,20 @@
 //
 // Stateless means a fresh server and transport per request: no session is kept in memory,
 // so the web container can restart at any time without breaking the scheduled task's run.
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+//
+// The low-level SDK `Server` is used on purpose: `McpServer` rejects unknown tools and invalid
+// arguments before any callback of ours runs, so those calls would never reach the audit log.
+// Here tools/call resolves the tool, validates its arguments and runs it in one audited block.
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { ListToolsRequestSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { z } from "zod";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type CallToolRequest,
+  type CallToolResult,
+  type Tool,
+} from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { recordToolCall, shortError } from "./audit";
 import { checkMcpAuth } from "./auth";
 
@@ -25,6 +35,16 @@ export type McpTool<Shape extends z.ZodRawShape = z.ZodRawShape> = {
 export type McpHandlerOptions = {
   tools: readonly McpTool[];
 };
+
+/** A registered tool with its argument validator and the JSON Schema listed to clients. */
+type RegisteredTool = {
+  tool: McpTool;
+  input: z.ZodObject<z.ZodRawShape>;
+  definition: Tool;
+};
+
+/** What the client gets back, and the error kept in the audit log (null on success). */
+type CallOutcome = { result: CallToolResult; auditError: string | null };
 
 const SERVER_INFO = { name: "trafic-bourse", version: "0.1.0" };
 
@@ -45,48 +65,84 @@ function jsonRpcError(status: number, code: number, message: string, headers: Re
   return Response.json({ jsonrpc: "2.0", error: { code, message }, id: null }, { status, headers: { ...NO_STORE, ...headers } });
 }
 
+function errorResult(text: string): CallToolResult {
+  return { isError: true, content: [{ type: "text", text }] };
+}
+
 function firstText(result: CallToolResult): string {
   const text = result.content.find((item) => item.type === "text");
   return text?.type === "text" ? text.text : "";
 }
 
-/** Runs a tool and writes its audit row, whatever the outcome. */
-async function runAudited(tool: McpTool, args: Record<string, unknown>): Promise<CallToolResult> {
-  const at = new Date();
-  const started = performance.now();
-  const elapsed = () => Math.round(performance.now() - started);
+function registerTools(tools: readonly McpTool[]): Map<string, RegisteredTool> {
+  const registry = new Map<string, RegisteredTool>();
+  for (const tool of tools) {
+    if (registry.has(tool.name)) throw new Error(`MCP tool ${tool.name} is registered twice`);
+    const input = z.object(tool.inputSchema);
+    // Same conversion as the SDK's `registerTool`: draft-7, input side of transforms.
+    const inputSchema = z.toJSONSchema(input, { target: "draft-7", io: "input" }) as Tool["inputSchema"];
+    registry.set(tool.name, { tool, input, definition: { name: tool.name, description: tool.description, inputSchema } });
+  }
+  return registry;
+}
+
+/**
+ * Invalid arguments: the client gets one `path: message` line per issue so it can fix them all
+ * in one round trip; the audit keeps the paths and messages only, never the values sent.
+ */
+function invalidArguments(name: string, error: z.ZodError): CallOutcome {
+  const issues = error.issues.map((issue) => `${issue.path.length ? issue.path.join(".") : "(racine)"} : ${issue.message}`);
+  return {
+    result: errorResult(`Arguments invalides pour l'outil ${name} :\n${issues.map((issue) => `- ${issue}`).join("\n")}`),
+    auditError: shortError(`Invalid arguments: ${issues.join("; ")}`, "Invalid arguments"),
+  };
+}
+
+/** Resolves, validates and runs one tools/call request; never throws. */
+async function callTool(registry: Map<string, RegisteredTool>, params: CallToolRequest["params"]): Promise<CallOutcome> {
+  const registered = registry.get(params.name);
+  if (!registered) {
+    return { result: errorResult(`Outil inconnu : ${params.name}.`), auditError: "Unknown tool" };
+  }
+
+  const parsed = await registered.input.safeParseAsync(params.arguments ?? {});
+  if (!parsed.success) return invalidArguments(params.name, parsed.error);
+
   try {
-    const result = await tool.handler(args);
-    const error = result.isError ? shortError(firstText(result), "Tool returned an error result") : null;
-    recordToolCall({ tool: tool.name, ok: !result.isError, error, durationMs: elapsed(), at });
-    return result;
+    const result = await registered.tool.handler(parsed.data);
+    const auditError = result.isError ? shortError(firstText(result), "Tool returned an error result") : null;
+    return { result, auditError };
   } catch (error) {
-    const durationMs = elapsed();
-    console.error(`MCP tool ${tool.name} threw`, error);
+    console.error(`MCP tool ${params.name} threw`, error);
     const message = error instanceof Error ? error.message : String(error);
-    recordToolCall({ tool: tool.name, ok: false, error: shortError(message, "Tool threw"), durationMs, at });
-    return { isError: true, content: [{ type: "text", text: TOOL_FAILURE_MESSAGE }] };
+    return { result: errorResult(TOOL_FAILURE_MESSAGE), auditError: shortError(message, "Tool threw") };
   }
 }
 
-function buildServer(tools: readonly McpTool[]): McpServer {
-  const server = new McpServer(SERVER_INFO);
-  for (const tool of tools) {
-    server.registerTool(tool.name, { description: tool.description, inputSchema: tool.inputSchema }, (args) =>
-      runAudited(tool, args),
-    );
-  }
-  if (tools.length === 0) {
-    // McpServer only answers tools/list once a tool is registered: an empty registry must
-    // still list (nothing) instead of failing with "method not found".
-    server.server.registerCapabilities({ tools: {} });
-    server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [] }));
-  }
+/** One tools/call, timed from lookup to result, with its audit row written whatever the outcome. */
+async function runAudited(registry: Map<string, RegisteredTool>, params: CallToolRequest["params"]): Promise<CallToolResult> {
+  const at = new Date();
+  const started = performance.now();
+  const { result, auditError } = await callTool(registry, params);
+  const durationMs = Math.round(performance.now() - started);
+  // The requested name is client input: keep it to one short line in the log.
+  recordToolCall({ tool: shortError(params.name, "(unnamed)"), ok: auditError === null, error: auditError, durationMs, at });
+  return result;
+}
+
+function buildServer(registry: Map<string, RegisteredTool>): Server {
+  const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
+  // An empty registry lists nothing instead of failing with "method not found".
+  server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: [...registry.values()].map((registered) => registered.definition),
+  }));
+  server.setRequestHandler(CallToolRequestSchema, (request) => runAudited(registry, request.params));
   return server;
 }
 
 /** The /api/mcp handler for a tool registry: auth first, then MCP. */
 export function createMcpHandler({ tools }: McpHandlerOptions): (request: Request) => Promise<Response> {
+  const registry = registerTools(tools);
   return async (request) => {
     const auth = checkMcpAuth(request);
     if (!auth.ok) {
@@ -102,7 +158,7 @@ export function createMcpHandler({ tools }: McpHandlerOptions): (request: Reques
       return jsonRpcError(405, -32000, "Method not allowed.", { Allow: "POST" });
     }
 
-    const server = buildServer(tools);
+    const server = buildServer(registry);
     // JSON responses: the reply is complete when handleRequest resolves, so the per-request
     // server can be closed right after.
     const transport = new WebStandardStreamableHTTPServerTransport({
