@@ -236,3 +236,59 @@ export function payloadWithSeveralErrors(): { payload: JsonObject; paths: string
   news[2].category = "sport";
   return { payload, paths: ["tldr", "mood", "news.0.sourceName", "news.1.sourceUrl", "news.2.category"] };
 }
+
+/**
+ * A valid payload at the limits of the bounded metadata fields: a 120-character source name, a
+ * 2048-character URL and ten 20-character tickers, plus real provider symbols in another item.
+ */
+export function metadataLimitsPayload(): JsonObject {
+  return withPayload((p) => {
+    const news = p.news as JsonObject[];
+    news[0].sourceName = "n".repeat(120);
+    news[0].sourceUrl = `https://exemple.fr/${"a".repeat(2048 - "https://exemple.fr/".length)}`;
+    news[0].tickers = Array.from({ length: 10 }, (_, i) => `T${i}`.padEnd(20, "X"));
+    news[1].tickers = ["^FCHI", "^STOXX50E", "EURUSD=X", "GC=F", "BTC-EUR", "IWDA.AS", "MC.PA", "brk-b"];
+  });
+}
+
+/**
+ * Payloads breaking a size or format limit of the news item metadata (sourceName, sourceUrl,
+ * tickers): without them one call could store megabytes in `raw_payload` and `news_items`.
+ */
+export function metadataLimitCases(): InvalidCase[] {
+  return [
+    {
+      name: "news item sourceName longer than 120 characters",
+      payload: withPayload((p) => (firstNews(p).sourceName = "n".repeat(121))),
+      path: "news.0.sourceName",
+    },
+    { name: "news item sourceName blank", payload: withPayload((p) => (firstNews(p).sourceName = " ")), path: "news.0.sourceName" },
+    {
+      name: "news item sourceUrl longer than 2048 characters",
+      payload: withPayload((p) => (firstNews(p).sourceUrl = `https://exemple.fr/${"a".repeat(2048)}`)),
+      path: "news.0.sourceUrl",
+      mentions: "2048",
+    },
+    {
+      name: "news item with eleven tickers",
+      payload: withPayload((p) => (firstNews(p).tickers = Array.from({ length: 11 }, (_, i) => `T${i}`))),
+      path: "news.0.tickers",
+    },
+    {
+      name: "news item ticker longer than 20 characters",
+      payload: withPayload((p) => (firstNews(p).tickers = ["^FCHI", "T".repeat(21)])),
+      path: "news.0.tickers.1",
+    },
+    { name: "news item ticker empty", payload: withPayload((p) => (firstNews(p).tickers = [""])), path: "news.0.tickers.0" },
+    {
+      name: "news item ticker with a space",
+      payload: withPayload((p) => (firstNews(p).tickers = ["MC PA"])),
+      path: "news.0.tickers.0",
+    },
+    {
+      name: "news item ticker with markup",
+      payload: withPayload((p) => (firstNews(p).tickers = ["<b>AI</b>"])),
+      path: "news.0.tickers.0",
+    },
+  ];
+}
