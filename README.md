@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. No business tables yet.
+Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` and its `mcp_audit` log; it serves no business tool yet (`publish_brief` and `get_recent_briefs` come next). No business tables yet.
 
 ## Prerequisites
 
@@ -31,6 +31,7 @@ Settings are read from the environment. `.env.example` lists them; copy it to `.
 | `CF_ACCESS_AUD` | — | Audience (AUD) tag of the Access application protecting `/admin`. |
 | `ADMIN_EMAILS` | — | E-mails allowed on `/admin`, comma-separated, case-insensitive. |
 | `ADMIN_AUTH_DISABLED` | unset | Local dev only: `true` skips the `/admin` check. Ignored when `NODE_ENV=production`. |
+| `MCP_TOKEN` | — | Bearer token required on `/api/mcp`. Generate one with `openssl rand -hex 32`. Unset or empty: every MCP request answers `401`. |
 
 The database is always opened in WAL mode with a busy timeout, so the web and jobs processes can share the file.
 
@@ -59,6 +60,15 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 - `200` with `{ "status": "ok", "db": { "status": "ok", "journalMode": "wal" } }` when the database answers;
 - `503` with `{ "status": "error", "db": { "status": "error" } }` otherwise (details go to the server logs only).
 
+## MCP endpoint
+
+`/api/mcp` is the MCP server the Claude scheduled task connects to (`CLAUDE.md` §7): official `@modelcontextprotocol/sdk`, Streamable HTTP, stateless (a fresh server and transport per request, JSON responses, no session). It runs on the Node.js runtime and is never cached.
+
+- **Auth** (`CLAUDE.md` §8, option A): every request, whatever its method, must carry `Authorization: Bearer <MCP_TOKEN>`. The token is compared in constant time (both sides hashed with SHA-256, then `timingSafeEqual`). A missing or wrong token answers `401` with a short « Non autorisé. » and `Cache-Control: no-store`; an unset `MCP_TOKEN` answers `401` too (fail closed) and logs the problem on the server, never the token. `src/middleware.ts` does not run on this route.
+- **Methods**: once authenticated, only `POST` is served; `GET` and `DELETE` answer `405` (no standalone SSE stream, no session to end).
+- **Tools**: the server is built from a tool registry (`src/lib/mcp/tools/index.ts`), empty for now; `tools/list` answers an empty list rather than an error.
+- **Audit**: every `tools/call` adds one row to `mcp_audit` (`tool`, `ok`, `error`, `duration_ms`, `at`), for successes, error results, thrown errors, unknown tools and invalid arguments alike. The error is one line of at most 200 characters; arguments and results are never stored. A failing audit write is logged on the server and does not affect the call. Invalid arguments come back to the client as one `path : message` line per issue.
+
 ## Admin access
 
 `/admin` is protected twice: by a Cloudflare Access application on that path (configured in Cloudflare, outside this repo), and by the app itself. `src/middleware.ts` runs on `/admin` and `/admin/*` only (public pages and `/api/*` never go through it) and verifies the `Cf-Access-Jwt-Assertion` header: RS256 signature against the team keys (`https://<CF_ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`, cached), issuer, audience `CF_ACCESS_AUD`, expiry, and an `email` claim listed in `ADMIN_EMAILS`.
@@ -71,16 +81,21 @@ To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `
 
 1. Create a self-hosted Access application for the site's host name, restricted to the path `admin`, with an Allow policy on the owner's e-mail (one-time code login).
 2. Copy the application's Audience (AUD) tag into `CF_ACCESS_AUD`, the team domain (`<team>.cloudflareaccess.com`) into `CF_ACCESS_TEAM_DOMAIN`, and the allowed e-mail(s) into `ADMIN_EMAILS` (same list as the Access policy).
-3. Later, when `/api/mcp` exists (MCP auth story), add a Bypass for that path: Claude cannot pass Access, so the app protects that route itself (`CLAUDE.md` §8).
+3. If an Access application covers `/api/mcp` (for example one on the whole host name), add a Bypass policy for that path: Claude cannot pass Access, so the app protects that route itself with `MCP_TOKEN` ([MCP endpoint](#mcp-endpoint)).
 
 ## Layout
 
 ```
 src/app/page.tsx              provisional home page (French)
 src/app/api/health/route.ts   health route
+src/app/api/mcp/route.ts      MCP endpoint (bearer token, stateless Streamable HTTP)
 src/app/admin/page.tsx        provisional admin page (French, noindex)
 src/middleware.ts             Cloudflare Access check on /admin
 src/lib/auth/                 Access token verification (jose)
+src/lib/mcp/server.ts         MCP handler: auth, tool registry, audited tools/call
+src/lib/mcp/auth.ts           bearer token check against MCP_TOKEN
+src/lib/mcp/audit.ts          mcp_audit writes
+src/lib/mcp/tools/            production tool registry (empty for now)
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`

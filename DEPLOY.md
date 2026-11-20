@@ -98,8 +98,9 @@ own iptables rules ahead of ufw, so anyone on the LAN (or through a router port-
 routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudflare Access on
 `/admin` and the rate limit on `/api/mcp`.
 
-The same `.env` is passed to the containers (secrets such as `MCP_TOKEN` go there later).
-Never commit it.
+The same `.env` is passed to the containers, with the app settings listed in
+[README.md](./README.md#configuration). Set `MCP_TOKEN` there (`openssl rand -hex 32`): without
+it, every request on `/api/mcp` answers `401`. Never commit it.
 
 ## 5. Log in to GHCR
 
