@@ -4,7 +4,7 @@ import { createYahooProvider } from "@/lib/market/yahoo";
 
 describe("US #18 — Yahoo provider mapping", () => {
   it("given a chart response, when bars are requested, then closes are mapped to YYYY-MM-DD bars and null closes are skipped", async () => {
-    const chart = vi.fn(async () => ({
+    const chart = vi.fn(async (_symbol: string, _options: unknown) => ({
       quotes: [
         { date: new Date("2026-11-20T08:00:00Z"), open: 1, high: 3, low: 0.5, close: 2, volume: 10 },
         { date: new Date("2026-11-21T08:00:00Z"), open: null, high: null, low: null, close: null, volume: null },
