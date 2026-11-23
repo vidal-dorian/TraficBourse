@@ -27,15 +27,36 @@ describe("criterion 72 — latest close of every default instrument is stored", 
 
   it("given the default instruments, when the job runs, then the latest close of each is recorded in prices_daily", async () => {
     const { sqlite, db } = openMigrated();
-    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-20", "2026-11-23"]));
+    // Previous trading day (Friday 2026-11-20); BTC trades every day (Sunday 2026-11-22).
+    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-19", "2026-11-20"]));
+    provider.setBars("BTC-EUR", [bar("2026-11-21", 90_000), bar("2026-11-22", 91_000)]);
     const result = await runPricesJob({ db, provider, now: NOW, logger: fakeLogger() });
 
     expect(result.failed).toEqual([]);
     expect(result.updated.map((u) => u.symbol).sort()).toEqual([...DEFAULT_SYMBOLS].sort());
     DEFAULT_SYMBOLS.forEach((symbol, i) => {
       const rows = priceRows(sqlite, symbol);
-      expect(rows.at(-1)).toEqual({ symbol, date: "2026-11-23", close: 100 + i });
+      expect(rows.at(-1)).toEqual(
+        symbol === "BTC-EUR"
+          ? { symbol, date: "2026-11-22", close: 91_000 }
+          : { symbol, date: "2026-11-20", close: 100 + i },
+      );
     });
+  });
+
+  it("given the provider returns a bar dated Paris today (still trading), when the job runs, then it is not stored and the latest stored close is the previous day's", async () => {
+    const { sqlite, db } = openMigrated();
+    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-20", "2026-11-22", "2026-11-23"]));
+    await runPricesJob({ db, provider, now: NOW, logger: fakeLogger() });
+
+    // The window still goes up to Paris today...
+    expect(provider.calls.every((c) => c.to === "2026-11-23")).toBe(true);
+    // ...but only bars strictly before Paris today are stored.
+    const all = priceRows(sqlite);
+    expect(all.length).toBeGreaterThan(0);
+    expect(all.filter((r) => r.date >= "2026-11-23")).toEqual([]);
+    expect(priceRows(sqlite, "^FCHI").at(-1)).toEqual({ symbol: "^FCHI", date: "2026-11-22", close: 100 });
+    expect(priceRows(sqlite, "BTC-EUR").at(-1)?.date).toBe("2026-11-22");
   });
 });
 
@@ -51,7 +72,20 @@ describe("criterion 73 — first run fetches one year of history", () => {
 
     const call = provider.calls.find((c) => c.providerSymbol === "^FCHI");
     expect(call).toEqual({ providerSymbol: "^FCHI", from: "2025-11-23", to: "2026-11-23" });
-    expect(priceRows(sqlite, "^FCHI")).toHaveLength(dates.length);
+    // The bar dated Paris today is still trading: every earlier bar is stored, today's is not.
+    expect(priceRows(sqlite, "^FCHI")).toHaveLength(dates.length - 1);
+    expect(priceRows(sqlite, "^FCHI").at(-1)?.date).toBe("2026-11-22");
+  });
+
+  it("given 29 February in Paris, when the job runs for the first time, then it fetches from 28 February of the previous year", async () => {
+    const { db } = openMigrated();
+    const provider = fakeProvider({});
+    await runPricesJob({ db, provider, now: new Date("2028-02-29T07:00:00Z"), logger: fakeLogger() });
+    for (const call of provider.calls) {
+      expect(call.from).toBe("2027-02-28");
+      expect(call.to).toBe("2028-02-29");
+    }
+    expect(provider.calls.length).toBe(DEFAULT_SYMBOLS.length);
   });
 
   it("given a time just before midnight UTC, when the job runs, then the window uses the Paris date (2026-11-22T23:30Z is 2026-11-23 in Paris)", async () => {
@@ -86,7 +120,7 @@ describe("criterion 73 — first run fetches one year of history", () => {
 describe("criterion 74 — running again the same day creates no duplicate", () => {
   it("given a job already run today, when it runs again, then the row count is unchanged and no (symbol, date) is duplicated", async () => {
     const { sqlite, db } = openMigrated();
-    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-20", "2026-11-23"]));
+    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-19", "2026-11-20"]));
     await runPricesJob({ db, provider, now: NOW, logger: fakeLogger() });
     const before = priceRows(sqlite);
     await runPricesJob({ db, provider, now: NOW, logger: fakeLogger() });
@@ -98,17 +132,17 @@ describe("criterion 74 — running again the same day creates no duplicate", () 
 
   it("given a close revised by the provider, when the job runs again, then the stored value is updated, not duplicated", async () => {
     const { sqlite, db } = openMigrated();
-    await runPricesJob({ db, provider: fakeProvider({ "^FCHI": [bar("2026-11-23", 7000)] }), now: NOW, logger: fakeLogger() });
-    await runPricesJob({ db, provider: fakeProvider({ "^FCHI": [bar("2026-11-23", 7123)] }), now: NOW, logger: fakeLogger() });
+    await runPricesJob({ db, provider: fakeProvider({ "^FCHI": [bar("2026-11-20", 7000)] }), now: NOW, logger: fakeLogger() });
+    await runPricesJob({ db, provider: fakeProvider({ "^FCHI": [bar("2026-11-20", 7123)] }), now: NOW, logger: fakeLogger() });
 
-    expect(priceRows(sqlite, "^FCHI")).toEqual([{ symbol: "^FCHI", date: "2026-11-23", close: 7123 }]);
+    expect(priceRows(sqlite, "^FCHI")).toEqual([{ symbol: "^FCHI", date: "2026-11-20", close: 7123 }]);
   });
 });
 
 describe("criterion 75 — a failing symbol does not stop the others", () => {
   it("given one symbol in error, when the job runs, then the others are stored, the failure is reported and logged with the symbol", async () => {
     const { sqlite, db } = openMigrated();
-    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-23"]), ["^NDX"]);
+    const provider = fakeProvider(allBars((i) => 100 + i, ["2026-11-20"]), ["^NDX"]);
     const logger = fakeLogger();
     const result = await runPricesJob({ db, provider, now: NOW, logger });
 

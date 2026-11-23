@@ -46,6 +46,9 @@ export function fakeProvider(bars: Record<string, Bar[]>, failing: string[] = []
   const calls: Call[] = [];
   return {
     calls,
+    setBars(symbol: string, list: Bar[]) {
+      bars[symbol] = list;
+    },
     name: "fake",
     async getDailyBars(providerSymbol: string, from: string, to: string): Promise<Bar[]> {
       calls.push({ providerSymbol, from, to });
