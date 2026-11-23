@@ -218,7 +218,7 @@ Server-side rules beyond Zod:
   - **Option B (if A is unavailable):** single-user OAuth inside the app (login page with Dorian's password).
   - Both options are implemented and `/api/mcp` accepts either: `MCP_TOKEN` or an OAuth access token (US #12, `src/lib/mcp/oauth/`). OAuth is on when `PUBLIC_URL` is set and fails closed: `MCP_OAUTH_PASSWORD` of at least 16 characters, public clients registered dynamically (redirect URIs allowlisted, Claude callbacks by default), PKCE `S256` only, single-use codes, refresh rotation, tokens stored as SHA-256 hashes and revoked when the password changes, a per-address login lockout plus a global ceiling. The Cloudflare Access bypass must cover only `/api/mcp` and the OAuth paths. Details in `README.md`, setup in `DEPLOY.md`.
   - **Never** an unauthenticated connector relying on a "secret" URL.
-- Cloudflare rate limiting on `/api/mcp`; secrets in `.env` (provide `.env.example`, never commit `.env`).
+- Cloudflare rate limiting on `/api/mcp` and `/oauth/*`; secrets in `.env` (provide `.env.example`, never commit `.env`).
 - Prompt injection: Claude reads the web, then writes here. Render Markdown sanitized, strip raw HTML, `rel="noopener noreferrer"` on links, validate every URL.
 
 ---
