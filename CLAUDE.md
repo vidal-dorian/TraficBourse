@@ -281,6 +281,8 @@ Phase 1 aims for a real brief published by the scheduled task as early as possib
 
 ## Appendix A — Scheduled task prompt (v1, lives in claude.ai, not in the repo)
 
+The version in force, limited to the tools and fields the app accepts today, is `docs/prompt-tache-planifiee.md`: it is the single source of truth to paste into the tasks (setup in `docs/mise-en-service.md`). The prompt below is the target once every tool ships.
+
 Keep the MCP tool names and payload in sync with this prompt; update it when the contract changes.
 
 ```
