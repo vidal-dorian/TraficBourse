@@ -55,7 +55,10 @@ export async function runPricesJob({
         .where(eq(pricesDaily.symbol, instrument.symbol))
         .get()?.date;
       const from = last ?? oneYearBefore(today);
-      const bars = await provider.getDailyBars(instrument.providerSymbol, from, today);
+      const fetched = await provider.getDailyBars(instrument.providerSymbol, from, today);
+      // A bar dated Paris today is a day still trading (24/7 markets, futures, FX at 06:30):
+      // its "close" is a live price that would be stored as final. Only finished days are kept.
+      const bars = fetched.filter((bar) => bar.date < today);
       db.transaction((tx) => {
         for (const bar of bars) {
           const row = { symbol: instrument.symbol, ...bar };

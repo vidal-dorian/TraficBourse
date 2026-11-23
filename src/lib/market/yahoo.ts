@@ -22,7 +22,7 @@ export interface YahooChartClient {
 }
 
 function defaultClient(): YahooChartClient {
-  return new YahooFinance({ suppressNotices: ["yahooSurvey"] }) as unknown as YahooChartClient;
+  return new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 }
 
 /** The exchange's local calendar day of `instant`, "YYYY-MM-DD" (UTC when the zone is unknown). */
