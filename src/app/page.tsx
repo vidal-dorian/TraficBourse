@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getLatestBrief } from "@/lib/briefs/latest";
 import { getDb } from "@/lib/db/client";
 import { parisToday } from "@/lib/dates/paris";
@@ -25,6 +26,11 @@ export default function HomePage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <BriefContent brief={brief} />
+      <p className="mt-10 border-t border-neutral-200 pt-6">
+        <Link href="/archives" className="underline underline-offset-2">
+          Briefs précédents
+        </Link>
+      </p>
     </main>
   );
 }
