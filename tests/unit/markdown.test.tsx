@@ -50,6 +50,8 @@ describe("safeHref", () => {
     [" https://exemple.fr", undefined],
     ["https://", undefined],
     ["//exemple.fr", undefined],
+    ["https://reuters.com@evil.example/x", undefined],
+    ["https://user:pass@exemple.fr", undefined],
   ])("%s → %s", (url, expected) => {
     expect(safeHref(url)).toBe(expected);
   });

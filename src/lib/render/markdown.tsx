@@ -8,12 +8,15 @@
 // switch to a CommonMark renderer (react-markdown, keeping raw HTML as text) if briefs need more.
 import type { ReactNode } from "react";
 
-/** `url` when it is an absolute http(s) URL, as typed; undefined otherwise. */
+/**
+ * `url` when it is an absolute http(s) URL without user info, as typed; undefined otherwise.
+ * User info is refused as in `SourceUrl`: `https://reuters.com@evil.example` opens another host.
+ */
 export function safeHref(url: string): string | undefined {
   if (!/^https?:\/\//i.test(url)) return undefined;
   try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:" ? url : undefined;
+    const { protocol, username, password } = new URL(url);
+    return (protocol === "http:" || protocol === "https:") && username === "" && password === "" ? url : undefined;
   } catch {
     return undefined;
   }
