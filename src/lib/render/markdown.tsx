@@ -1,0 +1,92 @@
+// Sanitized Markdown rendering (CLAUDE.md principle 2, §8): the texts come from Claude, who read
+// them on the web, so nothing in them is trusted. Only a small subset is understood — paragraphs,
+// bullet and numbered lists, **bold**, *italic* and [links](https://…) — and everything else,
+// raw HTML included, stays text: the output is React elements, which React escapes, never an HTML
+// string. Only absolute http(s) URLs become links, and they open in a new tab.
+//
+// ponytail: hand-written subset, no headings, code, images nor reference links (shown as typed);
+// switch to a CommonMark renderer (react-markdown, keeping raw HTML as text) if briefs need more.
+import type { ReactNode } from "react";
+
+/** `url` when it is an absolute http(s) URL, as typed; undefined otherwise. */
+export function safeHref(url: string): string | undefined {
+  if (!/^https?:\/\//i.test(url)) return undefined;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A link leaving the site: new tab, no `window.opener`, no referrer. */
+export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+      {children}
+    </a>
+  );
+}
+
+// **bold** | *italic* | [text](url), the URL allowing one level of parentheses (Wikipedia style).
+const INLINE = /\*\*(.+?)\*\*|\*([^*\s](?:[^*]*[^*\s])?)\*|\[([^\]]+)\]\(\s*((?:[^\s()]|\([^\s()]*\))+)\s*\)/g;
+
+function inline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(INLINE)) {
+    const [whole, bold, italic, label, url] = match;
+    const index = match.index;
+    if (index > last) nodes.push(text.slice(last, index));
+    if (bold !== undefined) nodes.push(<strong key={index}>{inline(bold)}</strong>);
+    else if (italic !== undefined) nodes.push(<em key={index}>{inline(italic)}</em>);
+    else {
+      const href = safeHref(url);
+      nodes.push(
+        href ? (
+          <ExternalLink key={index} href={href}>
+            {inline(label)}
+          </ExternalLink>
+        ) : (
+          // Not a link we trust: keep its label, drop the URL.
+          <span key={index}>{inline(label)}</span>
+        ),
+      );
+    }
+    last = index + whole.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+const BULLET = /^[-*+]\s+/;
+const NUMBERED = /^\d+[.)]\s+/;
+
+function block(source: string, key: number): ReactNode {
+  const lines = source.split("\n").map((line) => line.trim());
+  for (const [marker, Tag, style] of [
+    [BULLET, "ul", "list-disc"],
+    [NUMBERED, "ol", "list-decimal"],
+  ] as const) {
+    if (lines.every((line) => marker.test(line))) {
+      return (
+        <Tag key={key} className={`${style} space-y-1 pl-5`}>
+          {lines.map((line, index) => (
+            <li key={index}>{inline(line.replace(marker, ""))}</li>
+          ))}
+        </Tag>
+      );
+    }
+  }
+  return <p key={key}>{inline(lines.join(" "))}</p>;
+}
+
+/** `text` rendered as sanitized Markdown, one block per paragraph or list. */
+export function Markdown({ text, className }: { text: string; className?: string }) {
+  const blocks = text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n[ \t]*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return <div className={className ? `space-y-2 ${className}` : "space-y-2"}>{blocks.map(block)}</div>;
+}
