@@ -5,8 +5,11 @@
 //   that renders without the Next.js runtime.
 // - `src/app/layout.tsx` declares `<html lang="fr">`.
 // - `npm run dev` starts `next dev` (Next.js 15).
+// - Since US #15 the page reads the briefs from the database at `DATABASE_PATH`: it is given an
+//   empty migrated database, the state of a fresh clone after `npm run db:migrate`.
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { makeMigratedDatabase } from "./helpers/mcp";
 import { declaredVersion, firstExisting, readPackageJson, rootPath } from "./helpers/project";
 
 const FRENCH_WORDS =
@@ -34,6 +37,15 @@ async function renderHomePage(): Promise<string> {
 }
 
 describe("C33 — provisional home page in French", () => {
+  beforeEach(() => {
+    vi.stubEnv("DATABASE_PATH", makeMigratedDatabase());
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("C33 — given a clone of the repo, when the home page is rendered, then it shows French text and no create-next-app boilerplate", async () => {
     const text = textOf(await renderHomePage());
 
