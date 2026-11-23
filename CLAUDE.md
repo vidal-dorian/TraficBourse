@@ -105,6 +105,7 @@ Only two inbound flows: visitors/Dorian through Cloudflare, Claude through `/api
   middleware.ts → Access check, matcher `/admin` and `/admin/:path*` only
   /jobs         index.ts (cron entrypoint), prices.ts, missing-brief.ts, backup.ts
 /public/illustrations/<category>.svg
+/docs          mise-en-service.md (setup guide), prompt-tache-planifiee.md (prompt in force)
 /tests
 Dockerfile, docker-compose.yml, .env.example
 ```
@@ -283,7 +284,7 @@ Phase 1 aims for a real brief published by the scheduled task as early as possib
 
 The version in force, limited to the tools and fields the app accepts today, is `docs/prompt-tache-planifiee.md`: it is the single source of truth to paste into the tasks (setup in `docs/mise-en-service.md`). The prompt below is the target once every tool ships.
 
-Keep the MCP tool names and payload in sync with this prompt; update it when the contract changes.
+Keep the MCP tool names and payload in sync with this prompt; update it when the contract changes. Adding, renaming or removing an MCP tool, or changing the `BriefPayload` contract, also means updating `docs/prompt-tache-planifiee.md` (`tests/docs-prompt-tache-planifiee.test.ts` checks that its tool list equals the tools exposed on `/api/mcp`).
 
 ```
 You are the editor of my private daily markets brief. I am a beginner investor in France (broker: Trade Republic). Your job is to help me understand what happens in markets, not to tell me what to buy.

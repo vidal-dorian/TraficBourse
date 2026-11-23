@@ -158,6 +158,9 @@ an error when the pull is denied, so `&&` stops before `up`.
 (or the tag in `IMAGE_TAG`). `web` and `jobs` restart on their own after a crash or a reboot
 (`restart: unless-stopped`).
 
+Next step: plug Claude into the running app (connector, scheduled tasks, first manual run) with
+[docs/mise-en-service.md](./docs/mise-en-service.md).
+
 ## Update
 
 After a push on `main`, wait for the CI run to finish (Actions tab), then:
