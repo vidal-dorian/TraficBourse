@@ -1,7 +1,5 @@
 // OAuth settings of the MCP connector (CLAUDE.md §8, option B), read from the environment at
 // request time. Every value fails closed: when it is missing, the OAuth flow refuses.
-import { createHmac } from "node:crypto";
-
 /** The login password is the only thing between the internet and the tools: shorter ones are refused. */
 export const MIN_PASSWORD_LENGTH = 16;
 
@@ -32,15 +30,6 @@ export function getOwnerPassword(env: Record<string, string | undefined> = proce
     return undefined;
   }
   return configured;
-}
-
-/**
- * Identifies the current password without storing it: tokens carry it, so changing the password
- * revokes them all. Undefined when no usable password is configured.
- */
-export function currentCredential(env: Record<string, string | undefined> = process.env): string | undefined {
-  const password = getOwnerPassword(env);
-  return password === undefined ? undefined : createHmac("sha256", "trafic-bourse oauth credential v1").update(password).digest("hex");
 }
 
 /** Redirect URIs a client may register: `MCP_OAUTH_REDIRECT_URIS` (comma-separated) or the Claude callbacks. */

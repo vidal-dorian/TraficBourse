@@ -1,9 +1,11 @@
 // Storage of the OAuth clients, authorization codes and tokens. Codes and tokens are random
 // 32-byte secrets; only their SHA-256 hash is stored, so a copy of the database grants nothing.
+// Tokens also carry a random credential generation id (see `credential.ts`), never anything
+// derived from the owner's password.
 // Expiries are milliseconds since the epoch (`Date.now()`), flags are 0 or 1.
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
-import { currentCredential } from "./config";
+import { currentCredential } from "./credential";
 import { getDb } from "@/lib/db/client";
 import { oauthClients, oauthCodes, oauthTokens } from "@/lib/db/schema";
 

@@ -101,7 +101,7 @@ export const oauthCodes = sqliteTable("oauth_codes", {
 /**
  * Access and refresh tokens issued to a client. Only the SHA-256 hash is stored;
  * `expires_at` and `granted_at` (the original login, carried over on refresh) are in milliseconds
- * since the epoch, `revoked` is 0 or 1. `credential` is the generation of the owner's password
+ * since the epoch, `revoked` is 0 or 1. `credential` is the random id of the owner's password generation
  * the token was issued under: changing the password invalidates every token. `code_hash` is the
  * authorization code the token descends from, so a replayed code can revoke what it produced.
  */
