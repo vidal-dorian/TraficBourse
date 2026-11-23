@@ -14,7 +14,7 @@ décrit. Le prompt des tâches est dans [prompt-tache-planifiee.md](./prompt-tac
   - **Option A, jeton** : `MCP_TOKEN` dans le `.env`. Générer la valeur avec `openssl rand -hex 32`, la
     garder dans un gestionnaire de mots de passe, ne jamais la commiter.
   - **Option B, OAuth** : `MCP_OAUTH_PASSWORD` d'au moins 16 caractères (`openssl rand -base64 24`) et
-    `PUBLIC_URL`.
+    `PUBLIC_URL`. Garder le mot de passe dans un gestionnaire de mots de passe, ne jamais le commiter.
 - Après toute modification du `.env` : `docker compose up -d --no-build` (relance `web`).
 
 ## 2. Cloudflare Access
@@ -24,17 +24,22 @@ Claude ne peut pas passer Cloudflare Access (code à usage unique par e-mail). L
 
 1. Application Access qui protège `/admin`, avec une règle Allow sur votre e-mail. Elle est décrite dans le
    [README](../README.md#cloudflare-access-setup-manual-done-once-in-the-zero-trust-dashboard).
-2. Si une application Access couvre aussi ces chemins (par exemple tout le nom d'hôte), ajouter une règle
-   **Bypass** qui exclut exactement :
+2. Dans Zero Trust, créer une **seconde** application Access, auto-hébergée (self-hosted), sur le même nom
+   d'hôte, dont les destinations sont exactement ces chemins, sans `*` :
    - `/api/mcp`
-   - `/.well-known/oauth-protected-resource*`
+   - `/oauth/authorize`, `/oauth/register` et `/oauth/token`
    - `/.well-known/oauth-authorization-server`
-   - `/oauth/register`, `/oauth/token` et `/oauth/authorize`
+   - `/.well-known/oauth-protected-resource` et `/.well-known/oauth-protected-resource/api/mcp`
 
-   Les chemins `/oauth/` et `/.well-known/oauth-` ne servent qu'à l'option B ; sans elle, `/api/mcp` suffit.
-3. Ne jamais contourner le domaine entier, ni `/admin`, ni un joker comme `/oauth/*` ou `/.well-known/*`.
-   `/admin` reste protégé par Access.
-4. Ajouter une règle de limitation de débit (rate limiting) Cloudflare sur `/api/mcp` et sur `/oauth/*` :
+   Lui donner une seule politique **Bypass**, avec Include : Everyone. Les chemins OAuth ne servent qu'à
+   l'option B ; sans elle, `/api/mcp` suffit.
+3. Une politique s'applique à tous les chemins que couvre son application. Ne jamais ajouter de Bypass à
+   l'application qui couvre `/admin` ou tout le nom d'hôte : `/admin` serait alors ouvert à tous. Cloudflare
+   applique l'application au chemin le plus spécifique, donc celle de `/admin` (ou du domaine) garde sa
+   politique Allow. Pas de joker comme `/oauth/*` ou `/.well-known/*`.
+4. Vérifier : `https://<domaine>/admin` affiche toujours la page de connexion Cloudflare, et
+   `https://<domaine>/api/mcp` sans jeton répond le `401` de l'app (pas une page Cloudflare).
+5. Ajouter une règle de limitation de débit (rate limiting) Cloudflare sur `/api/mcp` et sur `/oauth/*` :
    seule Cloudflare arrête un flot de requêtes avant qu'il n'atteigne le Pi.
 
 ## 3. Ajouter le connecteur dans claude.ai
@@ -48,6 +53,9 @@ Dans claude.ai, Réglages, Connecteurs, « Ajouter un connecteur personnalisé �
 - **Option B** : sans « Request headers », ne mettre aucun en-tête. Claude affiche la page de connexion de
   l'app (`/oauth/authorize`) : saisir `MCP_OAUTH_PASSWORD`. La session dure au plus 90 jours, puis il faut se
   reconnecter ; changer le mot de passe révoque toutes les sessions.
+
+Si le jeton fuit (par exemple une capture d'écran de la boîte de dialogue du connecteur), en générer un nouveau
+dans `MCP_TOKEN` du `.env`, relancer `web`, puis mettre à jour l'en-tête du connecteur.
 
 Ne jamais utiliser de connecteur sans authentification qui compterait sur une URL secrète. Une fois ajouté,
 le connecteur doit lister les outils `publish_brief` et `get_recent_briefs`.
