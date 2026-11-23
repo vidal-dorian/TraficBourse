@@ -33,6 +33,7 @@ import {
   unsignedAccessToken,
   type AccessKeys,
 } from "./helpers/access";
+import { makeMigratedDatabase } from "./helpers/mcp";
 
 type MiddlewareResult = Response | null | undefined | void;
 type Middleware = (request: NextRequest) => MiddlewareResult | Promise<MiddlewareResult>;
@@ -112,6 +113,8 @@ describe("C44 — public pages display without any login", () => {
 
   it("C44 — given a visitor without any Access token nor Access config, when they open the home page, then it renders in French", async () => {
     stubAccessEnv({ CF_ACCESS_TEAM_DOMAIN: undefined, CF_ACCESS_AUD: undefined, ADMIN_EMAILS: undefined });
+    // Since US #15 the home page reads the briefs: give it an empty migrated database.
+    vi.stubEnv("DATABASE_PATH", makeMigratedDatabase());
     const { config } = await loadMiddleware();
     expect(
       unstable_doesMiddlewareMatch({ config: config as Parameters<typeof unstable_doesMiddlewareMatch>[0]["config"], url: "/" }),

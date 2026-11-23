@@ -97,8 +97,8 @@ contrat, recopier le prompt mis à jour dans les deux tâches.
    vide ; une ligne antérieure à `ok` 0 avec une erreur de validation est normale si Claude a corrigé son
    brief après l'essai à blanc. L'heure `at` est en UTC.
 4. Relancer la tâche est sans danger : le brief d'une date et d'un type est remplacé, jamais dupliqué.
-5. Le brief s'affichera sur « Aujourd'hui » quand le ticket T4 (pages publiques) sera livré ; d'ici là, la
-   vérification passe par la base.
+5. Le brief s'affiche sur la page d'accueil « Aujourd'hui » (`https://<domaine>/`) : sa date, son TL;DR,
+   l'humeur du marché et chaque actualité avec sa source.
 
 Faire le même essai pour la tâche du samedi (`kind` `weekly`) avant le premier samedi.
 

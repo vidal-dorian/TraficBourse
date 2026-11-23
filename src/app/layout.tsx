@@ -14,7 +14,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body className="min-h-screen bg-white text-neutral-900 antialiased">
+      <body className="min-h-screen break-words bg-white text-neutral-900 antialiased">
         {children}
         <footer className="mx-auto max-w-2xl px-4 py-6 text-sm text-neutral-500">
           Contenu éducatif, pas un conseil en investissement.

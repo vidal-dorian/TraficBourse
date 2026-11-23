@@ -40,8 +40,9 @@ Arguments de publish_brief :
     - tickers : liste de 10 symboles au plus (1 à 20 caractères : lettres, chiffres et . ^ = -), vide si aucun.
     - sourceName : 120 caractères au plus.
     - sourceUrl : URL absolue en http ou https, 2048 caractères au plus, sans identifiant avant « @ ».
-  Tous les textes sont obligatoires, non vides, en Markdown, sans HTML. N'envoie aucune autre clé : elle serait
-  refusée.
+  Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
+  Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
+  aucune autre clé : elle serait refusée.
 
 Règles :
 - Aucune recommandation d'achat, de vente ou de conservation, aucun objectif de cours, aucun conseil
