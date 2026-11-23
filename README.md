@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them (no page shows a brief yet). The procedure to plug the Claude scheduled task into the app is versioned in [`docs/mise-en-service.md`](./docs/mise-en-service.md) (French setup guide), with the prompt in force in [`docs/prompt-tache-planifiee.md`](./docs/prompt-tache-planifiee.md).
+Current state: phase 0 foundation — a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them; the home page shows the latest published brief. The procedure to plug the Claude scheduled task into the app is versioned in [`docs/mise-en-service.md`](./docs/mise-en-service.md) (French setup guide), with the prompt in force in [`docs/prompt-tache-planifiee.md`](./docs/prompt-tache-planifiee.md).
 
 ## Prerequisites
 
@@ -63,6 +63,12 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 - `200` with `{ "status": "ok", "db": { "status": "ok", "journalMode": "wal" } }` when the database answers;
 - `503` with `{ "status": "error", "db": { "status": "error" } }` otherwise (details go to the server logs only).
 
+## Home page
+
+`/` (« Aujourd'hui », `src/app/page.tsx`) is rendered on each request and shows the latest brief: the `published` one with the most recent date up to today in Europe/Paris (drafts and future-dated briefs left out; on the same date the weekly recap wins), with its French date as the heading, its TL;DR, its mood and every news item in rank order (summary, « Pourquoi ça compte », « Impact possible », source link, category illustration from `public/illustrations/<category>.svg`). No published brief: a French empty state. The educational notice is in the root layout, on every page.
+
+Text fields go through `src/lib/render/markdown.tsx`, a small hand-written Markdown subset (paragraphs, bullet and numbered lists, `**bold**`, `*italic*`, `[links](https://…)`) that outputs React elements only: raw HTML shows as text, anything else stays as typed, only absolute http(s) URLs become links, and every external link opens in a new tab with `rel="noopener noreferrer"`. Titles and source names are plain text.
+
 ## MCP endpoint
 
 `/api/mcp` is the MCP server the Claude scheduled task connects to (`CLAUDE.md` §7): official `@modelcontextprotocol/sdk`, Streamable HTTP, stateless (a fresh server and transport per request, JSON responses, no session). It runs on the Node.js runtime and is never cached. To connect Claude to it and create the scheduled tasks, follow [`docs/mise-en-service.md`](./docs/mise-en-service.md).
@@ -111,7 +117,7 @@ To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `
 ## Layout
 
 ```
-src/app/page.tsx              provisional home page (French)
+src/app/page.tsx              home page: the latest published brief (French)
 src/app/api/health/route.ts   health route
 src/app/api/mcp/route.ts      MCP endpoint (bearer token or OAuth, stateless Streamable HTTP)
 src/app/admin/page.tsx        provisional admin page (French, noindex)
@@ -127,7 +133,9 @@ src/lib/mcp/tools/            production tool registry (publish_brief, get_recen
 src/lib/schemas/brief.ts      Zod contract of a brief payload, shared by the MCP tools (enum values in brief-enums.ts)
 src/lib/briefs/publish.ts     transactional publication of a brief and its news items
 src/lib/briefs/recent.ts      latest published briefs (TL;DR and news titles)
-src/lib/dates/paris.ts        Europe/Paris calendar dates and day arithmetic
+src/lib/briefs/latest.ts      the brief shown on the home page, with its news items
+src/lib/render/markdown.tsx   sanitized Markdown subset rendered as React elements
+src/lib/dates/paris.ts        Europe/Paris calendar dates, day arithmetic and French date labels
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
@@ -135,6 +143,7 @@ src/lib/db/migrations/        generated SQL migrations
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 docs/mise-en-service.md       setup guide: connector and scheduled tasks (French)
 docs/prompt-tache-planifiee.md prompt in force for the scheduled tasks (French)
+public/illustrations/         one static SVG per news category
 tests/                        Vitest tests
 Dockerfile                    multi-stage image shared by the web, jobs and migrate services
 docker-compose.yml            stack run on the Pi (see DEPLOY.md)
