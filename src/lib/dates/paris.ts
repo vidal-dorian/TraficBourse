@@ -25,3 +25,17 @@ export function subtractDays(date: string, days: number): string {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
 }
+
+const frenchDateFormat = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/** `date` ("YYYY-MM-DD") written out in French, e.g. "vendredi 20 novembre 2026". */
+export function formatFrenchDate(date: string): string {
+  // A calendar date, not an instant: read and written at UTC midnight so no time zone shifts it.
+  return frenchDateFormat.format(new Date(`${date}T00:00:00Z`));
+}
