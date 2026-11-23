@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { listArchivedBriefs } from "@/lib/briefs/archives";
 import { getDb } from "@/lib/db/client";
@@ -6,6 +7,8 @@ import { briefTitle } from "@/lib/render/brief";
 
 // Read at each request: each new brief is listed without a rebuild.
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Archives — Veille boursière" };
 
 /** Archives: every published brief up to today, grouped by month, most recent first (US #16). */
 export default function ArchivesPage() {
