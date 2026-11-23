@@ -132,8 +132,11 @@ describe("C66 — given published briefs, when I open /archives, then I see them
   });
 
   it("C66 — given a weekly recap and a daily brief on the same dates, when I open /archives, then the weekly recap comes first and only its entry carries a « récap » label", async () => {
-    // On Nov 21 the daily brief is written first, on Nov 14 the weekly recap: no row order can pass
-    // for the tie-break on both dates.
+    // On Nov 21 the daily brief is written first, on Nov 14 the weekly recap: neither the row id nor
+    // the publication time can pass for the tie-break on both dates. The unique (date, kind) index
+    // can: SQLite reads it backwards for `ORDER BY date DESC`, which already puts "weekly" before
+    // "daily", so this test would not catch a dropped tie-break. The weekly-first test of
+    // tests/brief-page.test.tsx does (one date, the index read forwards).
     const { html } = await archivesWith([
       brief("2026-11-21", "daily"),
       brief("2026-11-21", "weekly"),
