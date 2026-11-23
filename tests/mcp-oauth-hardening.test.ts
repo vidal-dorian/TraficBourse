@@ -305,3 +305,62 @@ describe("C51 — the MCP_TOKEN log", () => {
     expect(error.mock.calls.flat().join(" ")).toContain("MCP_TOKEN is not set");
   });
 });
+
+describe("C53 — parallel guesses cannot bypass the lockout", () => {
+  it("C53 — given 10 wrong passwords and the right one sent in parallel from one address, then at most 5 are compared, the rest get 429, and no code is issued", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { params } = await authorizeParams();
+    const passwords = [...Array.from({ length: 10 }, (_, index) => `wrong guess number ${index}`), OWNER_PASSWORD];
+
+    const responses = await Promise.all(
+      passwords.map((password) => call(routes.authorize, fromAddress("203.0.113.50", authorizePost(params, password)))),
+    );
+
+    const statuses = responses.map((response) => response.status);
+    expect(statuses.filter((status) => status === 401).length).toBeLessThanOrEqual(5);
+    expect(statuses.filter((status) => status === 429).length).toBeGreaterThanOrEqual(6);
+    expect(statuses.every((status) => status === 401 || status === 429)).toBe(true);
+    expect(responses.every((response) => response.headers.get("location") === null)).toBe(true);
+    expect(countRows(databasePath, "oauth_codes")).toBe(0);
+  });
+});
+
+describe("C53 — IPv6 clients are limited by their /64", () => {
+  it.each([
+    ["2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64"],
+    ["2001:DB8:1:2::1", "2001:db8:1:2::/64"],
+    ["2001:db8:1:2:0:0:0:9", "2001:db8:1:2::/64"],
+    ["[2001:db8::1]", "2001:db8:0:0::/64"],
+    ["::1", "0:0:0:0::/64"],
+    ["::ffff:192.0.2.7", "192.0.2.7"],
+    ["::ffff:c000:207", "192.0.2.7"],
+    ["192.0.2.7", "192.0.2.7"],
+    ["fe80::1%eth0", "fe80:0:0:0::/64"],
+    ["not an address", "unknown"],
+    ["1:2:3:4:5:6:7:8:9", "unknown"],
+    ["1::2::3", "unknown"],
+  ])("C53 — given the address %s, when it is bucketed, then %s", async (address, bucket) => {
+    const { addressBucket } = await import("../src/lib/mcp/oauth/login-limiter");
+    expect(addressBucket(address)).toBe(bucket);
+  });
+
+  it("C53 — given an attacker rotating inside one /64, when 5 wrong passwords were typed, then every address of the /64 is locked out", async () => {
+    const { params } = await authorizeParams();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await call(routes.authorize, fromAddress(`2001:db8:1:2::${attempt + 1}`, authorizePost(params, "wrong password!!")));
+    }
+    expect((await call(routes.authorize, fromAddress("2001:db8:1:2:ffff::7", authorizePost(params, OWNER_PASSWORD)))).status).toBe(429);
+    expect((await call(routes.authorize, fromAddress("2001:db8:1:3::7", authorizePost(params, OWNER_PASSWORD)))).status).toBe(302);
+  });
+});
+
+describe("C51 — RFC 9207 issuer identification", () => {
+  it("C51 — given a successful login, when Claude is redirected, then iss is the public URL, and the metadata says so", async () => {
+    const { params } = await authorizeParams();
+    const response = await call(routes.authorize, authorizePost(params, OWNER_PASSWORD));
+    expect(new URL(response.headers.get("location") ?? "").searchParams.get("iss")).toBe(PUBLIC_URL);
+
+    const metadata = (await (await call(routes.authorizationServer, new Request(`${PUBLIC_URL}/.well-known/oauth-authorization-server`))).json()) as Record<string, unknown>;
+    expect(metadata.authorization_response_iss_parameter_supported).toBe(true);
+  });
+});

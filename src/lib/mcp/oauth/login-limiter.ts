@@ -19,10 +19,46 @@ const buckets = new Map<string, Bucket>();
 let globalFailures: number[] = [];
 let globalLockedUntil = 0;
 
-/** The address Cloudflare saw, or one shared bucket when the header is missing. */
+/** Eight 16-bit groups of an IPv6 address (`::` expanded, a trailing IPv4 turned into two groups), or undefined. */
+function ipv6Groups(address: string): number[] | undefined {
+  let text = address;
+  const dotted = /^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (dotted) {
+    const octets = dotted.slice(2).map(Number);
+    if (octets.some((octet) => octet > 255)) return undefined;
+    text = `${dotted[1]}${((octets[0] << 8) | octets[1]).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return undefined;
+  const toGroups = (part: string) => (part === "" ? [] : part.split(":"));
+  const head = toGroups(halves[0]);
+  const tail = halves.length === 2 ? toGroups(halves[1]) : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return undefined;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tail];
+  if (!groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return undefined;
+  return groups.map((group) => parseInt(group, 16));
+}
+
+/**
+ * The bucket of an address: IPv4 as is, IPv6 by its /64 prefix (one subscriber owns a whole /64,
+ * so single addresses would be free to rotate), IPv4-mapped IPv6 as the IPv4 address.
+ */
+export function addressBucket(address: string): string {
+  const bare = address.trim().replace(/^\[|\]$/g, "").split("%")[0];
+  if (!bare.includes(":")) return /^\d{1,3}(\.\d{1,3}){3}$/.test(bare) ? bare : UNKNOWN;
+  const groups = ipv6Groups(bare);
+  if (!groups) return UNKNOWN;
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return `${groups[6] >> 8}.${groups[6] & 255}.${groups[7] >> 8}.${groups[7] & 255}`;
+  }
+  return `${groups.slice(0, 4).map((group) => group.toString(16)).join(":")}::/64`;
+}
+
+/** The address Cloudflare saw, or one shared bucket when the header is missing or unreadable. */
 export function clientKey(request: Request): string {
-  const address = request.headers.get("cf-connecting-ip")?.trim();
-  return address ? address.slice(0, 64) : UNKNOWN;
+  const address = request.headers.get("cf-connecting-ip");
+  return address ? addressBucket(address) : UNKNOWN;
 }
 
 /** True while the lockout of this address (or the global one) lasts. */

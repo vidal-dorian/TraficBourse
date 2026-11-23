@@ -143,6 +143,11 @@ export async function submitLogin(request: Request): Promise<Response> {
   if (!expected) console.error("OAuth login refused: MCP_OAUTH_PASSWORD is not set");
   // Same answer for a wrong password and a missing configuration.
   if (!expected) return loginPage(parsed, 401, "Mot de passe incorrect.");
+  // The body was awaited above: parallel requests may have used up the attempts meanwhile. This
+  // check, the comparison and the failure count run with no await in between.
+  if (isLockedOut(client)) {
+    return errorPage("Trop de tentatives. Réessayez dans quelques minutes.", 429, { "Retry-After": "900" });
+  }
   if (!tokensMatch(params.get("password") ?? "", expected)) {
     recordFailure(client);
     return loginPage(parsed, 401, "Mot de passe incorrect.");
@@ -152,6 +157,8 @@ export async function submitLogin(request: Request): Promise<Response> {
   const code = issueCode({ clientId: parsed.clientId, redirectUri: parsed.redirectUri, codeChallenge: parsed.codeChallenge });
   const target = new URL(parsed.redirectUri);
   target.searchParams.set("code", code);
+  // RFC 9207: tells the client which authorization server answered.
+  target.searchParams.set("iss", publicUrl);
   if (parsed.state !== undefined) target.searchParams.set("state", parsed.state);
   return new Response(null, { status: 302, headers: { Location: target.toString(), "Cache-Control": "no-store" } });
 }
