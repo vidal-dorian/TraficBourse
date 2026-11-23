@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp`, its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them (no page shows a brief yet).
+Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them (no page shows a brief yet).
 
 ## Prerequisites
 
@@ -31,7 +31,10 @@ Settings are read from the environment. `.env.example` lists them; copy it to `.
 | `CF_ACCESS_AUD` | — | Audience (AUD) tag of the Access application protecting `/admin`. |
 | `ADMIN_EMAILS` | — | E-mails allowed on `/admin`, comma-separated, case-insensitive. |
 | `ADMIN_AUTH_DISABLED` | unset | Local dev only: `true` skips the `/admin` check. Ignored when `NODE_ENV=production`. |
-| `MCP_TOKEN` | — | Bearer token required on `/api/mcp`. Generate one with `openssl rand -hex 32`. Unset or empty: every MCP request answers `401`. |
+| `MCP_TOKEN` | — | Bearer token required on `/api/mcp`. Generate one with `openssl rand -hex 32`. Unset or empty: option A is off (OAuth tokens still work when configured). |
+| `PUBLIC_URL` | — | Public origin of the app (e.g. `https://bourse.example.com`, no path), the issuer and base of the OAuth endpoints. It must be the exact origin Claude reaches. Unset or not an http(s) URL: the OAuth endpoints answer `503` and `/api/mcp` accepts `MCP_TOKEN` only. |
+| `MCP_OAUTH_PASSWORD` | — | Password typed on the OAuth login page, at least 16 characters (`openssl rand -base64 24`). Unset, blank or shorter: the login is always refused. Changing it and restarting the app revokes every OAuth token already issued. |
+| `MCP_OAUTH_REDIRECT_URIS` | `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback` | Comma-separated redirect URIs a client may register (and use at login). Any other one is refused at registration. |
 
 The database is always opened in WAL mode with a busy timeout, so the web and jobs processes can share the file.
 
@@ -64,12 +67,32 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 
 `/api/mcp` is the MCP server the Claude scheduled task connects to (`CLAUDE.md` §7): official `@modelcontextprotocol/sdk`, Streamable HTTP, stateless (a fresh server and transport per request, JSON responses, no session). It runs on the Node.js runtime and is never cached.
 
-- **Auth** (`CLAUDE.md` §8, option A): every request on the methods it serves (POST, GET, DELETE, and HEAD through GET) must carry `Authorization: Bearer <MCP_TOKEN>`. The token is compared in constant time (both sides hashed with SHA-256, then `timingSafeEqual`). A missing or wrong token answers `401` with a short « Non autorisé. » and `Cache-Control: no-store`; an unset `MCP_TOKEN` answers `401` too (fail closed) and logs the problem on the server, never the token. `src/middleware.ts` does not run on this route. Next.js answers OPTIONS (204) and PUT or PATCH (405) by itself, before any MCP handling.
+- **Auth** (`CLAUDE.md` §8): every request on the methods it serves (POST, GET, DELETE, and HEAD through GET) must carry `Authorization: Bearer <token>`, where the token is either `MCP_TOKEN` (option A) or a live OAuth access token (option B, [OAuth login](#oauth-login-for-the-claude-connector)). `MCP_TOKEN` is compared in constant time (both sides hashed with SHA-256, then `timingSafeEqual`). A missing or wrong token answers `401` with a short « Non autorisé. » and `Cache-Control: no-store`; when `PUBLIC_URL` is set, the `WWW-Authenticate` header of that `401` is `Bearer resource_metadata="<PUBLIC_URL>/.well-known/oauth-protected-resource/api/mcp"` (plain `Bearer` otherwise), which is how a connector added without a header finds the login. An unset `MCP_TOKEN` refuses option A too (fail closed) and, when OAuth is not configured either, logs the problem on the server, never the token. `src/middleware.ts` does not run on this route. Next.js answers OPTIONS (204) and PUT or PATCH (405) by itself, before any MCP handling.
 - **Methods**: once authenticated, only `POST` is served; `GET` and `DELETE` answer `405` (no standalone SSE stream, no session to end).
 - **Tools**: the server is built from a tool registry (`src/lib/mcp/tools/index.ts`); an empty registry lists nothing rather than failing. A handler gets the validated arguments; a tool that sets `rawArguments: true` also gets, as a second argument, the arguments exactly as received (before defaults).
 - **`publish_brief(date, kind, payload, dry_run?)`**: `date` is `YYYY-MM-DD` (a real calendar date), `kind` is `daily` or `weekly`, `payload` follows `BriefPayload` (`src/lib/schemas/brief.ts`: `tldr`, `mood`, 1 to 5 news items). Objects are strict, and so are the tool arguments: a key not handled yet (`stockNotes`, `concept`, `storylineUpdates`, `chart`) or a misspelt argument (`dryRun` for `dry_run`) is an error. Every field is bounded (texts by length, `sourceName` 120 characters, `sourceUrl` an absolute http(s) URL of 2048 characters at most, with no user info before an `@`, at most 10 `tickers` of 1 to 20 characters among letters, digits and `. ^ = -`), so a call cannot store an oversized brief. Invalid arguments come back as one error result listing every issue at once, one `path : message` line each (e.g. `payload.news.0.sourceUrl : …`), and write nothing. `dry_run: true` validates and writes nothing. Otherwise the brief of (`date`, `kind`) is written as `published` with its news items and its raw JSON payload, in one transaction: republishing updates the same `briefs` row (same id) and replaces its news items, and a failure leaves the previous brief intact. The result is a short French text plus `structuredContent` `{ dryRun, date, kind, newsCount }`, with `briefId` when written. Markdown is stored as received. Tables: `briefs` (unique on `date` + `kind`, `status` draft or published, `raw_payload`, `published_at`) and `news_items` (`rank` in payload order, unique per brief; `tickers` as JSON; deleted with their brief). The `chart_spec` column of `CLAUDE.md` §6 comes with the chart ticket.
 - **`get_recent_briefs(days?)`**: read-only. `days` is an integer from 1 to 30, 7 when absent. The window is counted in calendar days back from today in Europe/Paris (whatever the server's time zone), today included: `since` = Paris today − `days`, and every `published` brief dated from `since` to Paris today comes back (drafts never; briefs dated after today are left out, so the answer is bounded at (`days` + 1) x 2 briefs). Order: date descending, and on the same date the weekly recap before the daily brief. The result is a short French text naming each brief's date, kind, TL;DR and news titles (or saying there is none); stored texts are flattened onto one quoted line each (« … ») under a fixed line saying they are data written from web sources, not instructions, so a TL;DR or title holding newlines cannot pass for an entry of the list, plus `structuredContent` `{ days, since, briefs }`, each entry exactly `{ date, kind, tldr, newsTitles }` (titles in rank order; no summary, source or raw payload). An empty window gives `briefs: []`, not an error. Two queries whatever the number of briefs (`src/lib/briefs/recent.ts`); Paris dates and day arithmetic in `src/lib/dates/paris.ts`.
 - **Audit**: every `tools/call` adds one row to `mcp_audit` (`tool`, `ok`, `error`, `duration_ms`, `at`), for successes, error results, thrown errors, unknown tools and invalid arguments alike. The error is one line of at most 200 characters; arguments and results are never stored. A failing audit write is logged on the server and does not affect the call. Invalid arguments come back to the client as one `path : message` line per issue.
+
+## OAuth login for the Claude connector
+
+`CLAUDE.md` §8, option B, for an account whose connector dialog has no « Request headers ». It sits next to option A: `MCP_TOKEN` keeps working unchanged. The app is both the authorization server and the resource server (MCP authorization spec, RFC 9728, RFC 8414, RFC 7591, OAuth 2.1 with PKCE `S256` only). It needs `PUBLIC_URL` and `MCP_OAUTH_PASSWORD`; without `PUBLIC_URL` every endpoint below answers `503`. The code is in `src/lib/mcp/oauth/`.
+
+| Endpoint | Role |
+| --- | --- |
+| `GET /.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp` | RFC 9728: `resource` is `<PUBLIC_URL>/api/mcp`, `authorization_servers` is `[<PUBLIC_URL>]` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414: issuer `PUBLIC_URL`, the three endpoints below, `S256` only, public clients (`none`), `authorization_response_iss_parameter_supported` |
+| `POST /oauth/register` | Dynamic client registration (RFC 7591), JSON body, public clients only. Every `redirect_uris` entry must be in the allowlist (`MCP_OAUTH_REDIRECT_URIS`), else `400 invalid_redirect_uri` |
+| `GET` and `POST /oauth/authorize` | The login page (French, no script, never framed, `no-store`) and its form |
+| `POST /oauth/token` | Form-urlencoded token endpoint: `authorization_code` and `refresh_token` grants |
+
+Flow: a request on `/api/mcp` without a valid token gets the `401` challenge, the client reads the two metadata documents, registers itself, and sends the owner to `/oauth/authorize` with a PKCE `S256` challenge. The client, the redirect URI (exactly one registered and still on the allowlist) and the optional `resource` (must be `<PUBLIC_URL>/api/mcp`) are checked first; a problem there shows an error page and never redirects. The owner types `MCP_OAUTH_PASSWORD` (compared in constant time); a wrong one answers `401` with the page again and issues nothing. The right one redirects with a single-use code (10 minutes) plus `state` and `iss` (RFC 9207). The client exchanges it with its `code_verifier` for an access token and a refresh token. A refresh rotates the pair: the old refresh token is revoked at once. Presenting a used code again revokes the tokens it produced.
+
+- **Lifetimes**: access token 1 hour; refresh token 30 days, and a login never lasts more than 90 days in total, however often it is refreshed (the owner then logs in again).
+- **Lockout**: 5 wrong passwords within 15 minutes from one address lock that address for 15 minutes (`429`, the password is not even compared). The address is `CF-Connecting-IP` (requests without it share one bucket), IPv6 grouped by its /64 prefix. A global ceiling of 50 failures in 15 minutes locks the login for everyone, owner included, for 15 minutes. Anyone who can send that many wrong passwords can therefore block new logins for a while; tokens already issued keep working. The counters live in memory and a restart clears them.
+- **Storage**: tables `oauth_clients`, `oauth_codes` and `oauth_tokens`. Codes and tokens are 32 random bytes and only their SHA-256 hash is stored. The password itself is never stored: the `app_meta` table holds a random generation id, which every token carries, and a scrypt verifier of the password. A new password gets a new generation id on first use, so every token issued under the old one stops working. Expired rows are not purged yet.
+
+To connect in Claude: set `PUBLIC_URL` and `MCP_OAUTH_PASSWORD`, make the OAuth paths reachable ([Cloudflare Access setup](#cloudflare-access-setup-manual-done-once-in-the-zero-trust-dashboard)), then add a custom connector with the URL `<PUBLIC_URL>/api/mcp` and no header. Claude opens the login page; type the password.
 
 ## Admin access
 
@@ -83,20 +106,23 @@ To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `
 
 1. Create a self-hosted Access application for the site's host name, restricted to the path `admin`, with an Allow policy on the owner's e-mail (one-time code login).
 2. Copy the application's Audience (AUD) tag into `CF_ACCESS_AUD`, the team domain (`<team>.cloudflareaccess.com`) into `CF_ACCESS_TEAM_DOMAIN`, and the allowed e-mail(s) into `ADMIN_EMAILS` (same list as the Access policy).
-3. If an Access application covers `/api/mcp` (for example one on the whole host name), add a Bypass policy for that path: Claude cannot pass Access, so the app protects that route itself with `MCP_TOKEN` ([MCP endpoint](#mcp-endpoint)).
+3. If an Access application covers these paths (for example one on the whole host name), add a Bypass policy for exactly these paths and nothing broader: `/api/mcp`, `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token` and `/oauth/authorize`. Claude cannot pass Access, so the app protects them itself: `MCP_TOKEN` or an OAuth access token on `/api/mcp` ([MCP endpoint](#mcp-endpoint)), the password and PKCE on the OAuth endpoints ([OAuth login](#oauth-login-for-the-claude-connector)). Do not bypass `/admin` or a wildcard such as `/oauth/*` or `/.well-known/*`.
 
 ## Layout
 
 ```
 src/app/page.tsx              provisional home page (French)
 src/app/api/health/route.ts   health route
-src/app/api/mcp/route.ts      MCP endpoint (bearer token, stateless Streamable HTTP)
+src/app/api/mcp/route.ts      MCP endpoint (bearer token or OAuth, stateless Streamable HTTP)
 src/app/admin/page.tsx        provisional admin page (French, noindex)
 src/middleware.ts             Cloudflare Access check on /admin
 src/lib/auth/                 Access token verification (jose)
-src/lib/mcp/server.ts         MCP handler: auth, tool registry, audited tools/call
-src/lib/mcp/auth.ts           bearer token check against MCP_TOKEN
+src/lib/mcp/server.ts         MCP handler: auth (MCP_TOKEN or OAuth), tool registry, audited tools/call
+src/lib/mcp/auth.ts           bearer token parsing and check against MCP_TOKEN
 src/lib/mcp/audit.ts          mcp_audit writes
+src/lib/mcp/oauth/            OAuth login of the connector (config, metadata, register, authorize, token, store, credential, login limiter)
+src/app/oauth/                /oauth/register, /oauth/authorize, /oauth/token route handlers
+src/app/.well-known/          OAuth discovery documents (protected resource, authorization server)
 src/lib/mcp/tools/            production tool registry (publish_brief, get_recent_briefs)
 src/lib/schemas/brief.ts      Zod contract of a brief payload, shared by the MCP tools (enum values in brief-enums.ts)
 src/lib/briefs/publish.ts     transactional publication of a brief and its news items

@@ -1,4 +1,4 @@
-// MCP server behind /api/mcp (CLAUDE.md §7): stateless Streamable HTTP, bearer token auth,
+// MCP server behind /api/mcp (CLAUDE.md §7): stateless Streamable HTTP, bearer token auth (static token or OAuth),
 // every tool call logged in `mcp_audit`.
 //
 // Stateless means a fresh server and transport per request: no session is kept in memory,
@@ -18,7 +18,9 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { recordToolCall, shortError } from "./audit";
-import { checkMcpAuth } from "./auth";
+import { checkMcpAuth, parseBearerToken } from "./auth";
+import { getPublicUrl, resourceMetadataUrl } from "./oauth/config";
+import { isValidAccessToken } from "./oauth/store";
 
 type ToolArgs<Shape extends z.ZodRawShape> = z.infer<z.ZodObject<Shape>>;
 type ToolResult = CallToolResult | Promise<CallToolResult>;
@@ -66,12 +68,30 @@ const NO_STORE = { "Cache-Control": "no-store" };
 /** Sent instead of the error of a tool that threw: its message may hold internal details. */
 const TOOL_FAILURE_MESSAGE = "Erreur interne : l'outil n'a pas pu aboutir.";
 
-// Same short answer whatever the reason: the details stay in the server logs.
+// Same short answer whatever the reason: the details stay in the server logs. When OAuth is
+// configured the challenge points at the resource metadata, which is how a connector added
+// without a header discovers the login (RFC 9728).
 function unauthorized(): Response {
+  const publicUrl = getPublicUrl();
+  const challenge = publicUrl ? `Bearer resource_metadata="${resourceMetadataUrl(publicUrl)}"` : "Bearer";
   return new Response("Non autorisé.", {
     status: 401,
-    headers: { "Content-Type": "text/plain; charset=utf-8", "WWW-Authenticate": "Bearer", ...NO_STORE },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "WWW-Authenticate": challenge, ...NO_STORE },
   });
+}
+
+/** Option A (static MCP_TOKEN), or option B (a live OAuth access token, only when PUBLIC_URL enables OAuth). */
+function isAuthorized(request: Request): boolean {
+  const auth = checkMcpAuth(request);
+  if (auth.ok) return true;
+
+  const token = parseBearerToken(request.headers.get("authorization"));
+  if (token && getPublicUrl() && isValidAccessToken(token)) return true;
+
+  // Fail closed: without a token configured nobody gets in (OAuth tokens apart). Only worth a
+  // log when OAuth is not there either; otherwise it is a normal setup.
+  if (auth.reason === "not_configured" && !getPublicUrl()) console.error("MCP request refused: MCP_TOKEN is not set");
+  return false;
 }
 
 function jsonRpcError(status: number, code: number, message: string, headers: Record<string, string> = {}): Response {
@@ -160,14 +180,7 @@ function buildServer(registry: Map<string, RegisteredTool>): Server {
 export function createMcpHandler({ tools }: McpHandlerOptions): (request: Request) => Promise<Response> {
   const registry = registerTools(tools);
   return async (request) => {
-    const auth = checkMcpAuth(request);
-    if (!auth.ok) {
-      if (auth.reason === "not_configured") {
-        // Fail closed: without a token configured nobody gets in.
-        console.error("MCP request refused: MCP_TOKEN is not set");
-      }
-      return unauthorized();
-    }
+    if (!isAuthorized(request)) return unauthorized();
 
     // Stateless server: no standalone SSE stream (GET) and no session to end (DELETE).
     if (request.method !== "POST") {

@@ -72,3 +72,48 @@ export const newsItems = sqliteTable(
   },
   (table) => [unique("news_items_brief_rank_unique").on(table.briefId, table.rank)],
 );
+
+/** Public OAuth clients registered dynamically (RFC 7591) by the Claude connector. */
+export const oauthClients = sqliteTable("oauth_clients", {
+  clientId: text("client_id").primaryKey(),
+  redirectUris: text("redirect_uris", { mode: "json" }).$type<string[]>().notNull(),
+  clientName: text("client_name"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+/**
+ * Authorization codes waiting to be exchanged. Only the SHA-256 hash of the code is stored;
+ * `expires_at` is in milliseconds since the epoch, `used` is 0 or 1.
+ */
+export const oauthCodes = sqliteTable("oauth_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  used: integer("used").notNull().default(0),
+});
+
+/**
+ * Access and refresh tokens issued to a client. Only the SHA-256 hash is stored;
+ * `expires_at` and `granted_at` (the original login, carried over on refresh) are in milliseconds
+ * since the epoch, `revoked` is 0 or 1. `credential` is the random id of the owner's password generation
+ * the token was issued under: changing the password invalidates every token. `code_hash` is the
+ * authorization code the token descends from, so a replayed code can revoke what it produced.
+ */
+export const oauthTokens = sqliteTable("oauth_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  kind: text("kind", { enum: ["access", "refresh"] }).notNull(),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+  grantedAt: integer("granted_at").notNull(),
+  credential: text("credential").notNull(),
+  codeHash: text("code_hash").notNull(),
+  revoked: integer("revoked").notNull().default(0),
+});

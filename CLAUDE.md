@@ -215,9 +215,10 @@ Server-side rules beyond Zod:
 - **`/admin`**: protected by a Cloudflare Access application on that path (email one-time code). The app also checks the `Cf-Access-Jwt-Assertion` header (`src/middleware.ts`): RS256 against the team certs, issuer, audience `CF_ACCESS_AUD`, `email` in `ADMIN_EMAILS`; any failure or missing config → 403 (fail closed). `ADMIN_AUTH_DISABLED=true` skips the check in local dev only, never when `NODE_ENV=production`.
 - **`/api/mcp`**: bypassed in Cloudflare Access (Claude cannot pass Access), so the app protects it itself:
   - **Option A (preferred):** static `Authorization: Bearer <token>` configured in the Claude custom connector ("Request headers", currently a beta feature not open to every account). Constant-time comparison against `MCP_TOKEN` from env.
-  - **Option B (if A is unavailable):** single-user OAuth inside the app (MCP SDK auth helpers, login page with Dorian's password). Larger ticket.
+  - **Option B (if A is unavailable):** single-user OAuth inside the app (login page with Dorian's password).
+  - Both options are implemented and `/api/mcp` accepts either: `MCP_TOKEN` or an OAuth access token (US #12, `src/lib/mcp/oauth/`). OAuth is on when `PUBLIC_URL` is set and fails closed: `MCP_OAUTH_PASSWORD` of at least 16 characters, public clients registered dynamically (redirect URIs allowlisted, Claude callbacks by default), PKCE `S256` only, single-use codes, refresh rotation, tokens stored as SHA-256 hashes and revoked when the password changes, a per-address login lockout plus a global ceiling. The Cloudflare Access bypass must cover only `/api/mcp` and the OAuth paths. Details in `README.md`, setup in `DEPLOY.md`.
   - **Never** an unauthenticated connector relying on a "secret" URL.
-- Cloudflare rate limiting on `/api/mcp`; secrets in `.env` (provide `.env.example`, never commit `.env`).
+- Cloudflare rate limiting on `/api/mcp` and `/oauth/*`; secrets in `.env` (provide `.env.example`, never commit `.env`).
 - Prompt injection: Claude reads the web, then writes here. Render Markdown sanitized, strip raw HTML, `rel="noopener noreferrer"` on links, validate every URL.
 
 ---
@@ -270,7 +271,7 @@ Phase 1 aims for a real brief published by the scheduled task as early as possib
 
 ## 12. Open decisions — ask Dorian, don't guess
 
-1. **MCP auth:** is the "Request headers" section available in his "Add custom connector" dialog? → Option A or B (blocks the end of phase 1).
+1. **MCP auth:** is the "Request headers" section available in his "Add custom connector" dialog? → Option A or B (both are implemented: A when the header exists, B otherwise).
 2. **Watchlist content:** which stocks/ETFs (needed for phase 2 seeds).
 3. **Design system:** his professional dashboard design system (square, strict, rounded shapes, minimalist) or "Encrage" (cel-shading). Keep UI minimal until decided.
 4. **App name and subdomain** (`bourse.dorianvidal.com` is a placeholder).
