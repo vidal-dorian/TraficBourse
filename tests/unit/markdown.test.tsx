@@ -19,6 +19,22 @@ describe("Markdown", () => {
     expect(render("1. un\n2) deux")).toContain("<li>un</li><li>deux</li>");
   });
 
+  it("honours the start number of a numbered list", () => {
+    expect(render("3. trois\n4. quatre")).toContain('<ol start="3"');
+    expect(render("1. un\n2. deux")).not.toContain("start=");
+  });
+
+  it("keeps a lone line starting with a number as text", () => {
+    expect(render("2026. Une année record.")).toBe('<div class="space-y-2"><p>2026. Une année record.</p></div>');
+    expect(render("1. premier\n\n2. second")).toBe('<div class="space-y-2"><p>1. premier</p><p>2. second</p></div>');
+  });
+
+  it("splits text lines and list lines of one block", () => {
+    expect(render("Points :\n- a\n- b\nFin")).toBe(
+      '<div class="space-y-2"><p>Points :</p><ul class="list-disc space-y-1 pl-5"><li>a</li><li>b</li></ul><p>Fin</p></div>',
+    );
+  });
+
   it("renders italic and nested emphasis inside a link", () => {
     expect(render("un *mot* et **[gras](https://a.fr)**")).toBe(
       `<div class="space-y-2"><p>un <em>mot</em> et <strong><a href="https://a.fr" ${NEW_TAB} class="underline underline-offset-2">gras</a></strong></p></div>`,
