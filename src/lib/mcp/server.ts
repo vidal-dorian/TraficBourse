@@ -88,10 +88,9 @@ function isAuthorized(request: Request): boolean {
   const token = parseBearerToken(request.headers.get("authorization"));
   if (token && getPublicUrl() && isValidAccessToken(token)) return true;
 
-  if (auth.reason === "not_configured") {
-    // Fail closed: without a token configured nobody gets in (OAuth tokens apart).
-    console.error("MCP request refused: MCP_TOKEN is not set");
-  }
+  // Fail closed: without a token configured nobody gets in (OAuth tokens apart). Only worth a
+  // log when OAuth is not there either; otherwise it is a normal setup.
+  if (auth.reason === "not_configured" && !getPublicUrl()) console.error("MCP request refused: MCP_TOKEN is not set");
   return false;
 }
 

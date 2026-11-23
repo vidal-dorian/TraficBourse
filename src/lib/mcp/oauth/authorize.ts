@@ -1,12 +1,14 @@
 // Authorization endpoint: a login page where the owner types the password, then a redirect
 // back to the client with a single-use code (OAuth 2.1, PKCE S256 only).
 import { tokensMatch } from "../auth";
-import { getOwnerPassword, getPublicUrl, notConfigured, resourceUrl } from "./config";
+import { getAllowedRedirectUris, getOwnerPassword, getPublicUrl, notConfigured, readBoundedText, resourceUrl } from "./config";
+import { isLockedOut, recordFailure, recordSuccess } from "./login-limiter";
 import { findClient, issueCode } from "./store";
 
 /** The parameters of an authorization request, carried by the login form in hidden fields. */
 type AuthorizeRequest = {
   clientId: string;
+  clientName: string | null;
   redirectUri: string;
   codeChallenge: string;
   state: string | undefined;
@@ -14,6 +16,7 @@ type AuthorizeRequest = {
 };
 
 const MAX_PARAM_LENGTH = 2048;
+const PARAMS = ["client_id", "redirect_uri", "response_type", "code_challenge", "code_challenge_method", "state", "resource"];
 const CODE_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
 
 const PAGE_HEADERS = {
@@ -53,8 +56,10 @@ ${body}
   return new Response(html, { status, headers: PAGE_HEADERS });
 }
 
-function errorPage(message: string): Response {
-  return page("Connexion impossible", `<p class="error">${escapeHtml(message)}</p>`, 400);
+function errorPage(message: string, status = 400, headers: Record<string, string> = {}): Response {
+  const response = page("Connexion impossible", `<p class="error">${escapeHtml(message)}</p>`, status);
+  for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  return response;
 }
 
 function loginPage(request: AuthorizeRequest, status: number, error?: string): Response {
@@ -71,8 +76,10 @@ function loginPage(request: AuthorizeRequest, status: number, error?: string): R
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(([name, value]) => `<input type="hidden" name="${name}" value="${escapeHtml(value)}">`)
     .join("\n");
+  const application = request.clientName ? `L'application « ${escapeHtml(request.clientName)} »` : "Une application";
   const body = `${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}
-<p>Claude demande l'accès à votre veille boursière. Saisissez le mot de passe pour l'autoriser.</p>
+<p>${application} demande l'accès à votre veille boursière. Saisissez le mot de passe pour l'autoriser.</p>
+<p><strong>Ne saisissez ce mot de passe que si vous venez d'ajouter le connecteur vous-même dans Claude.</strong></p>
 <form method="post" action="/oauth/authorize">
 ${hidden}
 <label for="password">Mot de passe</label>
@@ -84,16 +91,15 @@ ${hidden}
 
 /** The request's parameters, or the message of the first problem (the client is then never redirected). */
 function parseRequest(params: URLSearchParams, publicUrl: string): AuthorizeRequest | string {
-  const get = (name: string): string | undefined => {
-    const value = params.get(name);
-    return value !== null && value.length <= MAX_PARAM_LENGTH ? value : undefined;
-  };
+  if (PARAMS.some((name) => (params.get(name) ?? "").length > MAX_PARAM_LENGTH)) return "Paramètre trop long.";
+  const get = (name: string): string | undefined => params.get(name) ?? undefined;
 
   // Client and redirect URI first: until they are known good, nothing may be sent to the redirect URI.
   const client = findClient(get("client_id") ?? "");
   if (!client) return "Application inconnue.";
   const redirectUri = get("redirect_uri");
-  if (!redirectUri || !client.redirectUris.includes(redirectUri)) return "Adresse de retour non autorisée.";
+  // Registered for this client and still on the allowlist (which may have been narrowed since).
+  if (!redirectUri || !client.redirectUris.includes(redirectUri) || !getAllowedRedirectUris().includes(redirectUri)) return "Adresse de retour non autorisée.";
 
   if (get("response_type") !== "code") return "Type de réponse non pris en charge.";
   const codeChallenge = get("code_challenge");
@@ -103,7 +109,7 @@ function parseRequest(params: URLSearchParams, publicUrl: string): AuthorizeRequ
   const resource = get("resource");
   if (resource !== undefined && resource !== resourceUrl(publicUrl)) return "Ressource inconnue.";
 
-  return { clientId: client.clientId, redirectUri, codeChallenge, state: get("state"), resource };
+  return { clientId: client.clientId, clientName: client.clientName, redirectUri, codeChallenge, state: get("state"), resource };
 }
 
 /** GET /oauth/authorize: the login page. */
@@ -120,14 +126,14 @@ export async function submitLogin(request: Request): Promise<Response> {
   const publicUrl = getPublicUrl();
   if (!publicUrl) return notConfigured();
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return errorPage("Requête invalide.");
+  // Locked out: no parsing, no comparison, whatever the password.
+  if (isLockedOut()) {
+    return errorPage("Trop de tentatives. Réessayez dans quelques minutes.", 429, { "Retry-After": "900" });
   }
-  const params = new URLSearchParams();
-  for (const [name, value] of form) if (typeof value === "string") params.set(name, value);
+
+  const text = await readBoundedText(request).catch(() => undefined);
+  if (text === undefined) return errorPage("Requête trop volumineuse.", 413);
+  const params = new URLSearchParams(text);
 
   const parsed = parseRequest(params, publicUrl);
   if (typeof parsed === "string") return errorPage(parsed);
@@ -135,9 +141,12 @@ export async function submitLogin(request: Request): Promise<Response> {
   const expected = getOwnerPassword();
   if (!expected) console.error("OAuth login refused: MCP_OAUTH_PASSWORD is not set");
   // Same answer for a wrong password and a missing configuration.
-  if (!expected || !tokensMatch(params.get("password") ?? "", expected)) {
+  if (!expected) return loginPage(parsed, 401, "Mot de passe incorrect.");
+  if (!tokensMatch(params.get("password") ?? "", expected)) {
+    recordFailure();
     return loginPage(parsed, 401, "Mot de passe incorrect.");
   }
+  recordSuccess();
 
   const code = issueCode({ clientId: parsed.clientId, redirectUri: parsed.redirectUri, codeChallenge: parsed.codeChallenge });
   const target = new URL(parsed.redirectUri);

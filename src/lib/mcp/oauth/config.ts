@@ -1,5 +1,9 @@
 // OAuth settings of the MCP connector (CLAUDE.md §8, option B), read from the environment at
 // request time. Every value fails closed: when it is missing, the OAuth flow refuses.
+import { createHmac } from "node:crypto";
+
+/** The login password is the only thing between the internet and the tools: shorter ones are refused. */
+export const MIN_PASSWORD_LENGTH = 16;
 
 /** Redirect URIs a client may register when `MCP_OAUTH_REDIRECT_URIS` is not set: the Claude callbacks. */
 export const DEFAULT_REDIRECT_URIS = ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"];
@@ -16,10 +20,27 @@ export function getPublicUrl(env: Record<string, string | undefined> = process.e
   }
 }
 
-/** The owner's password typed on the login page; undefined when unset or blank (login always refused). */
+/**
+ * The owner's password typed on the login page; undefined when unset, blank or shorter than
+ * `MIN_PASSWORD_LENGTH` (login always refused; the weak case is logged, never the value).
+ */
 export function getOwnerPassword(env: Record<string, string | undefined> = process.env): string | undefined {
   const configured = env.MCP_OAUTH_PASSWORD;
-  return configured && configured.trim() ? configured : undefined;
+  if (!configured || !configured.trim()) return undefined;
+  if (configured.length < MIN_PASSWORD_LENGTH) {
+    console.error(`OAuth login refused: MCP_OAUTH_PASSWORD is shorter than ${MIN_PASSWORD_LENGTH} characters`);
+    return undefined;
+  }
+  return configured;
+}
+
+/**
+ * Identifies the current password without storing it: tokens carry it, so changing the password
+ * revokes them all. Undefined when no usable password is configured.
+ */
+export function currentCredential(env: Record<string, string | undefined> = process.env): string | undefined {
+  const password = getOwnerPassword(env);
+  return password === undefined ? undefined : createHmac("sha256", "trafic-bourse oauth credential v1").update(password).digest("hex");
 }
 
 /** Redirect URIs a client may register: `MCP_OAUTH_REDIRECT_URIS` (comma-separated) or the Claude callbacks. */
@@ -52,4 +73,29 @@ export function jsonResponse(body: unknown, status = 200, headers: Record<string
 export function notConfigured(): Response {
   console.error("OAuth request refused: PUBLIC_URL is not set");
   return jsonResponse({ error: "temporarily_unavailable", error_description: "OAuth is not configured." }, 503);
+}
+
+/** Largest body the OAuth endpoints parse (they carry a handful of short fields). */
+export const MAX_BODY_BYTES = 16 * 1024;
+
+/** The request's body as text, or undefined when it is larger than `MAX_BODY_BYTES` (read in chunks, never fully buffered). */
+export async function readBoundedText(request: Request): Promise<string | undefined> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return undefined;
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }

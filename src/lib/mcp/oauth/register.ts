@@ -1,15 +1,15 @@
 // Dynamic client registration (RFC 7591) of public clients, limited to an allowlist of redirect URIs.
 import { z } from "zod";
-import { getAllowedRedirectUris, getPublicUrl, jsonResponse, notConfigured } from "./config";
+import { getAllowedRedirectUris, getPublicUrl, jsonResponse, notConfigured, readBoundedText } from "./config";
 import { createClient } from "./store";
 
-const MAX_BODY_LENGTH = 10_000;
 const GRANT_TYPES = ["authorization_code", "refresh_token"] as const;
 
 const Metadata = z.object({
   redirect_uris: z.array(z.string().max(2048)).min(1).max(10),
   client_name: z.string().trim().max(200).optional(),
-  token_endpoint_auth_method: z.literal("none").optional(),
+  // Whatever is asked, the client is public: the answer says "none" (RFC 7591 §3.2.1).
+  token_endpoint_auth_method: z.string().max(100).optional(),
   grant_types: z.array(z.enum(GRANT_TYPES)).optional(),
   response_types: z.array(z.literal("code")).optional(),
 });
@@ -24,8 +24,8 @@ export async function registerClient(request: Request): Promise<Response> {
 
   let body: unknown;
   try {
-    const text = await request.text();
-    if (text.length > MAX_BODY_LENGTH) return registrationError("invalid_client_metadata", "Request body too large.");
+    const text = await readBoundedText(request);
+    if (text === undefined) return jsonResponse({ error: "invalid_client_metadata", error_description: "Request body too large." }, 413);
     body = JSON.parse(text);
   } catch {
     return registrationError("invalid_client_metadata", "The body must be JSON.");
