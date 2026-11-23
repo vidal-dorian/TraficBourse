@@ -1,6 +1,7 @@
 // Rereading of the latest published briefs (CLAUDE.md §7, `get_recent_briefs`): only what the
 // Claude scheduled task needs to avoid repeating itself, the TL;DR and the news titles.
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { weeklyFirst } from "@/lib/briefs/latest";
 import type { Db } from "@/lib/db/client";
 import { briefs, newsItems } from "@/lib/db/schema";
 import type { BriefKind } from "@/lib/schemas/brief";
@@ -28,7 +29,7 @@ export function listRecentBriefs(db: Db, { since, until }: RecentBriefsWindow): 
     .select({ id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr })
     .from(briefs)
     .where(and(eq(briefs.status, "published"), gte(briefs.date, since), lte(briefs.date, until)))
-    .orderBy(desc(briefs.date), sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`)
+    .orderBy(desc(briefs.date), weeklyFirst)
     .all();
   if (rows.length === 0) return [];
 

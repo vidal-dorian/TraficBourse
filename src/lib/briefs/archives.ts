@@ -1,7 +1,7 @@
 // Past briefs (US #16): the list of the archives page and the briefs of a given date. Same rule as
 // the home page: `published` briefs dated up to today in Paris, drafts and future dates left out.
-import { and, desc, eq, lte, sql } from "drizzle-orm";
-import { newsOf, type BriefWithNews } from "@/lib/briefs/latest";
+import { and, desc, eq, lte } from "drizzle-orm";
+import { briefColumns, newsOf, weeklyFirst, type BriefWithNews } from "@/lib/briefs/latest";
 import type { Db } from "@/lib/db/client";
 import { briefs } from "@/lib/db/schema";
 
@@ -16,7 +16,7 @@ export function listArchivedBriefs(db: Db, today: string): ArchivedBrief[] {
     .select({ date: briefs.date, kind: briefs.kind })
     .from(briefs)
     .where(and(eq(briefs.status, "published"), lte(briefs.date, today)))
-    .orderBy(desc(briefs.date), sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`)
+    .orderBy(desc(briefs.date), weeklyFirst)
     .all();
 }
 
@@ -26,10 +26,10 @@ export function listArchivedBriefs(db: Db, today: string): ArchivedBrief[] {
  */
 export function getBriefsOfDate(db: Db, date: string, today: string): BriefWithNews[] {
   return db
-    .select({ id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr, mood: briefs.mood })
+    .select(briefColumns)
     .from(briefs)
     .where(and(eq(briefs.status, "published"), eq(briefs.date, date), lte(briefs.date, today)))
-    .orderBy(sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`)
+    .orderBy(weeklyFirst)
     .all()
     .map(({ id, ...brief }) => ({ ...brief, news: newsOf(db, id) }));
 }

@@ -3,6 +3,12 @@ import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { briefs, newsItems } from "@/lib/db/schema";
 
+/** On the same date, the weekly recap before the daily brief (`ORDER BY` fragment). */
+export const weeklyFirst = sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`;
+
+/** The columns of a shown brief, its id to load its news. */
+export const briefColumns = { id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr, mood: briefs.mood };
+
 /** A brief as the public pages show it (home page, brief of a date). */
 export type BriefWithNews = Pick<typeof briefs.$inferSelect, "date" | "kind" | "tldr" | "mood"> & {
   /** In rank order. */
@@ -16,10 +22,10 @@ export type BriefWithNews = Pick<typeof briefs.$inferSelect, "date" | "kind" | "
  */
 export function getLatestBrief(db: Db, today: string): BriefWithNews | undefined {
   const brief = db
-    .select({ id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr, mood: briefs.mood })
+    .select(briefColumns)
     .from(briefs)
     .where(and(eq(briefs.status, "published"), lte(briefs.date, today)))
-    .orderBy(desc(briefs.date), sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 END`)
+    .orderBy(desc(briefs.date), weeklyFirst)
     .limit(1)
     .get();
   if (!brief) return undefined;
