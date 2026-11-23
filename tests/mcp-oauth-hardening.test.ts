@@ -1,10 +1,13 @@
 // US #12, hardening of the OAuth login (security review): brute-force lockout, weak password,
 // revocation of tokens when the password changes, absolute refresh lifetime, body limits, and
 // small login-page / registration details.
+import { createHash, createHmac } from "node:crypto";
+import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initializeRequest, makeMigratedDatabase, MCP_TEST_TOKEN } from "./helpers/mcp";
 import {
   authorizeGet,
+  dumpTable,
   authorizePost,
   call,
   CLAUDE_REDIRECT_URI,
@@ -19,6 +22,8 @@ import {
   tokenRequest,
   type Routes,
 } from "./helpers/oauth";
+
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as typeof import("node:sqlite");
 
 let databasePath: string;
 let routes: Routes;
@@ -88,6 +93,63 @@ describe("C53 — brute force on the login form", () => {
     const { params } = await authorizeParams();
     for (let attempt = 0; attempt < 4; attempt++) await call(routes.authorize, authorizePost(params, "wrong password!!"));
     expect((await call(routes.authorize, authorizePost(params, OWNER_PASSWORD))).status).toBe(302);
+  });
+});
+
+function fromAddress(address: string, request: Request): Request {
+  return new Request(request, { headers: new Headers([...request.headers, ["CF-Connecting-IP", address]]) });
+}
+
+describe("C53 — the lockout is per client address", () => {
+  it("C53 — given an attacker locked out, when the owner logs in from another address, then the login works", async () => {
+    const { params } = await authorizeParams();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await call(routes.authorize, fromAddress("203.0.113.9", authorizePost(params, "wrong password!!")));
+    }
+    expect((await call(routes.authorize, fromAddress("203.0.113.9", authorizePost(params, OWNER_PASSWORD)))).status).toBe(429);
+    expect((await call(routes.authorize, fromAddress("198.51.100.4", authorizePost(params, OWNER_PASSWORD)))).status).toBe(302);
+  });
+
+  it("C53 — given failures from many addresses, when the global ceiling of 50 is reached, then everyone is locked out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { params } = await authorizeParams();
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const response = await call(routes.authorize, fromAddress(`192.0.2.${attempt}`, authorizePost(params, "wrong password!!")));
+      expect(response.status).toBe(401);
+    }
+    expect((await call(routes.authorize, fromAddress("198.51.100.4", authorizePost(params, OWNER_PASSWORD)))).status).toBe(429);
+  });
+});
+
+describe("C52 — nothing stored lets anyone check a guessed password quickly", () => {
+  it("C52 — given tokens issued, when the database is read, then no value is a plain hash of the password and the verifier is scrypt", async () => {
+    await fullFlow(routes);
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    const meta = JSON.stringify(db.prepare("SELECT * FROM app_meta").all());
+    db.close();
+    const stored = `${meta}${dumpTable(databasePath, "oauth_tokens")}`;
+
+    const fast = [
+      createHash("sha256").update(OWNER_PASSWORD).digest("hex"),
+      createHash("sha256").update(OWNER_PASSWORD).digest("base64url"),
+      createHmac("sha256", "trafic-bourse oauth credential v1").update(OWNER_PASSWORD).digest("hex"),
+      OWNER_PASSWORD,
+    ];
+    for (const value of fast) expect(stored).not.toContain(value);
+    expect(meta).toMatch(/scrypt\$32768\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{64}/);
+  });
+
+  it("C52 — given the same password after a restart, when a token is checked, then it is still valid; a new password is a new generation", async () => {
+    const { tokens } = await fullFlow(routes);
+    vi.resetModules();
+    routes = await loadRoutes();
+    expect(await bearerStatus(tokens.access_token)).toBe(200);
+
+    vi.stubEnv("MCP_OAUTH_PASSWORD", "yet another long password");
+    expect(await bearerStatus(tokens.access_token)).toBe(401);
+    vi.stubEnv("MCP_OAUTH_PASSWORD", OWNER_PASSWORD);
+    // Back to the old password: it is a third generation, the old tokens stay dead.
+    expect(await bearerStatus(tokens.access_token)).toBe(401);
   });
 });
 

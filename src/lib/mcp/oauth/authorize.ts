@@ -2,7 +2,7 @@
 // back to the client with a single-use code (OAuth 2.1, PKCE S256 only).
 import { tokensMatch } from "../auth";
 import { getAllowedRedirectUris, getOwnerPassword, getPublicUrl, notConfigured, readBoundedText, resourceUrl } from "./config";
-import { isLockedOut, recordFailure, recordSuccess } from "./login-limiter";
+import { clientKey, isLockedOut, recordFailure, recordSuccess } from "./login-limiter";
 import { findClient, issueCode } from "./store";
 
 /** The parameters of an authorization request, carried by the login form in hidden fields. */
@@ -127,7 +127,8 @@ export async function submitLogin(request: Request): Promise<Response> {
   if (!publicUrl) return notConfigured();
 
   // Locked out: no parsing, no comparison, whatever the password.
-  if (isLockedOut()) {
+  const client = clientKey(request);
+  if (isLockedOut(client)) {
     return errorPage("Trop de tentatives. Réessayez dans quelques minutes.", 429, { "Retry-After": "900" });
   }
 
@@ -143,10 +144,10 @@ export async function submitLogin(request: Request): Promise<Response> {
   // Same answer for a wrong password and a missing configuration.
   if (!expected) return loginPage(parsed, 401, "Mot de passe incorrect.");
   if (!tokensMatch(params.get("password") ?? "", expected)) {
-    recordFailure();
+    recordFailure(client);
     return loginPage(parsed, 401, "Mot de passe incorrect.");
   }
-  recordSuccess();
+  recordSuccess(client);
 
   const code = issueCode({ clientId: parsed.clientId, redirectUri: parsed.redirectUri, codeChallenge: parsed.codeChallenge });
   const target = new URL(parsed.redirectUri);
