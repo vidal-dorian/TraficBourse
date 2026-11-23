@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them (no page shows a brief yet).
+Current state: phase 0 foundation — a provisional French home page, a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, and the `get_recent_briefs` tool, which rereads them (no page shows a brief yet). The procedure to plug the Claude scheduled task into the app is versioned in [`docs/mise-en-service.md`](./docs/mise-en-service.md) (French setup guide), with the prompt in force in [`docs/prompt-tache-planifiee.md`](./docs/prompt-tache-planifiee.md).
 
 ## Prerequisites
 
@@ -65,7 +65,7 @@ To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, co
 
 ## MCP endpoint
 
-`/api/mcp` is the MCP server the Claude scheduled task connects to (`CLAUDE.md` §7): official `@modelcontextprotocol/sdk`, Streamable HTTP, stateless (a fresh server and transport per request, JSON responses, no session). It runs on the Node.js runtime and is never cached.
+`/api/mcp` is the MCP server the Claude scheduled task connects to (`CLAUDE.md` §7): official `@modelcontextprotocol/sdk`, Streamable HTTP, stateless (a fresh server and transport per request, JSON responses, no session). It runs on the Node.js runtime and is never cached. To connect Claude to it and create the scheduled tasks, follow [`docs/mise-en-service.md`](./docs/mise-en-service.md).
 
 - **Auth** (`CLAUDE.md` §8): every request on the methods it serves (POST, GET, DELETE, and HEAD through GET) must carry `Authorization: Bearer <token>`, where the token is either `MCP_TOKEN` (option A) or a live OAuth access token (option B, [OAuth login](#oauth-login-for-the-claude-connector)). `MCP_TOKEN` is compared in constant time (both sides hashed with SHA-256, then `timingSafeEqual`). A missing or wrong token answers `401` with a short « Non autorisé. » and `Cache-Control: no-store`; when `PUBLIC_URL` is set, the `WWW-Authenticate` header of that `401` is `Bearer resource_metadata="<PUBLIC_URL>/.well-known/oauth-protected-resource/api/mcp"` (plain `Bearer` otherwise), which is how a connector added without a header finds the login. An unset `MCP_TOKEN` refuses option A too (fail closed) and, when OAuth is not configured either, logs the problem on the server, never the token. `src/middleware.ts` does not run on this route. Next.js answers OPTIONS (204) and PUT or PATCH (405) by itself, before any MCP handling.
 - **Methods**: once authenticated, only `POST` is served; `GET` and `DELETE` answer `405` (no standalone SSE stream, no session to end).
@@ -106,7 +106,7 @@ To open `/admin` locally without Cloudflare, set `ADMIN_AUTH_DISABLED=true` in `
 
 1. Create a self-hosted Access application for the site's host name, restricted to the path `admin`, with an Allow policy on the owner's e-mail (one-time code login).
 2. Copy the application's Audience (AUD) tag into `CF_ACCESS_AUD`, the team domain (`<team>.cloudflareaccess.com`) into `CF_ACCESS_TEAM_DOMAIN`, and the allowed e-mail(s) into `ADMIN_EMAILS` (same list as the Access policy).
-3. If an Access application covers these paths (for example one on the whole host name), add a Bypass policy for exactly these paths and nothing broader: `/api/mcp`, `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token` and `/oauth/authorize`. Claude cannot pass Access, so the app protects them itself: `MCP_TOKEN` or an OAuth access token on `/api/mcp` ([MCP endpoint](#mcp-endpoint)), the password and PKCE on the OAuth endpoints ([OAuth login](#oauth-login-for-the-claude-connector)). Do not bypass `/admin` or a wildcard such as `/oauth/*` or `/.well-known/*`.
+3. Claude cannot pass Access, so create a **separate** self-hosted Access application on the same host name, whose destinations are exactly these paths (no `*`): `/api/mcp`, `/oauth/authorize`, `/oauth/register`, `/oauth/token`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`, with one Bypass policy (Include: Everyone). Cloudflare applies the most specific path, so the application covering `/admin` (or the whole host) keeps its Allow policy; never add a Bypass to that one. Check that `/admin` still shows the Cloudflare login page and that `/api/mcp` without a token answers the app's `401`. The app protects these paths itself: `MCP_TOKEN` or an OAuth access token on `/api/mcp` ([MCP endpoint](#mcp-endpoint)), the password and PKCE on the OAuth endpoints ([OAuth login](#oauth-login-for-the-claude-connector)). Do not use a wildcard such as `/oauth/*` or `/.well-known/*`.
 
 ## Layout
 
@@ -133,6 +133,8 @@ src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
 src/lib/db/migrations/        generated SQL migrations
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
+docs/mise-en-service.md       setup guide: connector and scheduled tasks (French)
+docs/prompt-tache-planifiee.md prompt in force for the scheduled tasks (French)
 tests/                        Vitest tests
 Dockerfile                    multi-stage image shared by the web, jobs and migrate services
 docker-compose.yml            stack run on the Pi (see DEPLOY.md)
