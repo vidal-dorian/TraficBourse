@@ -101,7 +101,7 @@ Only two inbound flows: visitors/Dorian through Cloudflare, Claude through `/api
     /schemas    brief.ts (Zod), chart-spec.ts, ...
     /mcp        server.ts, tools/*.ts, auth.ts
     /market     provider.ts, yahoo.ts, twelvedata.ts, snapshot.ts
-    /render     markdown.ts (sanitized)
+    /render     markdown.tsx (sanitized)
   middleware.ts → Access check, matcher `/admin` and `/admin/:path*` only
   /jobs         index.ts (cron entrypoint), prices.ts, missing-brief.ts, backup.ts
 /public/illustrations/<category>.svg
@@ -109,6 +109,8 @@ Only two inbound flows: visitors/Dorian through Cloudflare, Claude through `/api
 /tests
 Dockerfile, docker-compose.yml, .env.example
 ```
+
+Implemented today (US #15): the home page "Aujourd'hui" is `src/app/page.tsx` (no `(public)` group yet), fed by `src/lib/briefs/latest.ts` (latest `published` brief dated up to Paris today, weekly before daily). Text fields go through `src/lib/render/markdown.tsx`, a hand-written sanitized subset (paragraphs, lists, bold, italic, links; React elements only, raw HTML shown as text, links only to absolute http(s) URLs without user info, new tab + `rel="noopener noreferrer"`). One illustration per category in `/public/illustrations`. Details in `README.md`.
 
 ---
 
