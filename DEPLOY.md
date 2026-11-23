@@ -102,6 +102,19 @@ The same `.env` is passed to the containers, with the app settings listed in
 [README.md](./README.md#configuration). Set `MCP_TOKEN` there (`openssl rand -hex 32`): without
 it, every request on `/api/mcp` answers `401`. Never commit it.
 
+To connect the Claude connector through OAuth instead of a header (`CLAUDE.md` §8, option B; details in [README.md](./README.md#oauth-login-for-the-claude-connector)), also set in `.env`:
+
+- `PUBLIC_URL`: the exact https origin of the site, for example `https://bourse.example.com` (no path, no trailing slash). It is the issuer and the base of the OAuth endpoints, so a wrong value breaks the login. Unset, the OAuth endpoints answer `503` and `/api/mcp` accepts `MCP_TOKEN` only.
+- `MCP_OAUTH_PASSWORD`: at least 16 characters (`openssl rand -base64 24`), typed on the login page. Changing it, then restarting `web` (`docker compose up -d web`), revokes every OAuth token already issued: the connector has to log in again.
+
+OAuth rows (clients, codes, tokens) that expired are not purged yet; they stay in the database until a later change removes them.
+
+### Cloudflare and Caddy for OAuth
+
+- **Access bypass**: Claude cannot pass Access, so if an Access application covers these paths (for example one on the whole host name), bypass exactly `/api/mcp`, `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token` and `/oauth/authorize`, and nothing broader. `/admin` stays behind Access.
+- **Rate limiting**: add a Cloudflare rate-limit rule on `/oauth/*` as well as on `/api/mcp`. The app also locks the login after 5 wrong passwords per address, but only Cloudflare stops the flood before it reaches the Pi.
+- **Client address**: the login lockout reads the `CF-Connecting-IP` header. Caddy must not let a client on the LAN forge it: keep the site reachable only through the tunnel (bind it to loopback, or to the tunnel's address, never to the LAN), or strip the header from requests that did not come from Cloudflare. A forged address would let an attacker dodge the per-address lockout.
+
 ## 5. Log in to GHCR
 
 The repository is private, so the GHCR package is private too: the Pi must log in once
