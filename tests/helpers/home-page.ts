@@ -1,7 +1,8 @@
-// Test helpers for the public home page (US #15): render it the way Next.js would, without the
-// Next.js runtime, read what a visitor sees in the markup, and seed the briefs it reads.
+// Test helpers for the public pages: the home page (US #15), the archives and the brief of a date
+// (US #16). Render them the way Next.js would, without the Next.js runtime, read what a visitor
+// sees in the markup, and seed the briefs they read.
 //
-// The page is a server component (sync or async) reading the database at `DATABASE_PATH`:
+// The pages are server components (sync or async) reading the database at `DATABASE_PATH`:
 // stub that variable and call `vi.resetModules()` before rendering, so the app opens the test file.
 import type { ReactNode } from "react";
 import type { BriefPayload as BriefPayloadData } from "../../src/lib/schemas/brief";
@@ -14,15 +15,41 @@ async function renderToHtml(element: unknown): Promise<string> {
   return renderToStaticMarkup(element as Parameters<typeof renderToStaticMarkup>[0]);
 }
 
+/** The props Next.js 15 passes to a page: `params` and `searchParams` are Promises. */
+function pageProps(params: Record<string, string> = {}) {
+  return { params: Promise.resolve(params), searchParams: Promise.resolve({}) };
+}
+
 async function homePageElement(): Promise<unknown> {
   const { default: HomePage } = await import("../../src/app/page");
   // Server components may be async: resolve the element first, then render it.
-  return (HomePage as Component)({ params: Promise.resolve({}), searchParams: Promise.resolve({}) });
+  return (HomePage as Component)(pageProps());
 }
 
 /** The markup of the home page alone (`src/app/page.tsx`). */
 export async function renderHomePage(): Promise<string> {
   return renderToHtml(await homePageElement());
+}
+
+/** The markup of the archives page alone (`src/app/archives/page.tsx`, `/archives`). */
+export async function renderArchivesPage(): Promise<string> {
+  const { default: ArchivesPage } = await import("../../src/app/archives/page");
+  return renderToHtml(await (ArchivesPage as Component)(pageProps()));
+}
+
+/**
+ * The markup of the brief page alone (`src/app/brief/[date]/page.tsx`) for the URL segment `date`,
+ * as in `/brief/<date>`. Rejects with the error the page throws, e.g. the one of `notFound()`.
+ */
+export async function renderBriefPage(date: string): Promise<string> {
+  const { default: BriefPage } = await import("../../src/app/brief/[date]/page");
+  return renderToHtml(await (BriefPage as Component)(pageProps({ date })));
+}
+
+/** The 404 page (`src/app/not-found.tsx`) as a visitor gets it: inside the root layout. */
+export async function renderNotFoundDocument(): Promise<string> {
+  const { default: NotFound } = await import("../../src/app/not-found");
+  return renderDocument((await (NotFound as Component)({})) as ReactNode);
 }
 
 /**
