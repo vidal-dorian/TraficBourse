@@ -3,12 +3,15 @@
 // Expiries are milliseconds since the epoch (`Date.now()`), flags are 0 or 1.
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
+import { currentCredential } from "./config";
 import { getDb } from "@/lib/db/client";
 import { oauthClients, oauthCodes, oauthTokens } from "@/lib/db/schema";
 
 export const CODE_TTL_MS = 10 * 60 * 1000;
 export const ACCESS_TOKEN_TTL_SECONDS = 3600;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 3600 * 1000;
+/** A login lasts at most this long, however often its refresh token is rotated. */
+export const REFRESH_MAX_LIFETIME_MS = 90 * 24 * 3600 * 1000;
 
 export function randomSecret(): string {
   return randomBytes(32).toString("base64url");
@@ -40,44 +43,70 @@ export function issueCode(input: { clientId: string; redirectUri: string; codeCh
   return code;
 }
 
-export type CodeGrant = { clientId: string; redirectUri: string; codeChallenge: string; expiresAt: number };
+export type CodeGrant = { codeHash: string; clientId: string; redirectUri: string; codeChallenge: string; expiresAt: number };
 
 /**
  * Marks the code as used and returns it, or undefined when unknown or already used. One atomic
  * statement, so two concurrent exchanges cannot both win; a code is burnt by its first attempt.
+ * A code presented again is a sign it leaked: the tokens it produced are revoked.
  */
 export function consumeCode(code: string): CodeGrant | undefined {
-  return getDb()
+  const codeHash = hash(code);
+  const grant = getDb()
     .update(oauthCodes)
     .set({ used: 1 })
-    .where(and(eq(oauthCodes.codeHash, hash(code)), eq(oauthCodes.used, 0)))
+    .where(and(eq(oauthCodes.codeHash, codeHash), eq(oauthCodes.used, 0)))
     .returning()
     .get();
+  if (!grant) getDb().update(oauthTokens).set({ revoked: 1 }).where(eq(oauthTokens.codeHash, codeHash)).run();
+  return grant;
 }
 
 export type IssuedTokens = { access_token: string; token_type: "Bearer"; expires_in: number; refresh_token: string };
 
-/** Issues an access token (1 h) and a refresh token for the client. */
-export function issueTokens(clientId: string): IssuedTokens {
+/** Where a pair of tokens comes from: the login that started the chain and the code of that login. */
+export type Lineage = { grantedAt: number; codeHash: string };
+
+/**
+ * Issues an access token (1 h) and a refresh token for the client, bound to the current password.
+ * The refresh token never outlives `REFRESH_MAX_LIFETIME_MS` after `lineage.grantedAt`. Returns
+ * undefined when no usable password is configured.
+ */
+export function issueTokens(clientId: string, lineage: Lineage): IssuedTokens | undefined {
+  const credential = currentCredential();
+  if (!credential) return undefined;
   const accessToken = randomSecret();
   const refreshToken = randomSecret();
   const now = Date.now();
+  const { grantedAt, codeHash } = lineage;
   getDb()
     .insert(oauthTokens)
     .values([
-      { tokenHash: hash(accessToken), kind: "access", clientId, expiresAt: now + ACCESS_TOKEN_TTL_SECONDS * 1000 },
-      { tokenHash: hash(refreshToken), kind: "refresh", clientId, expiresAt: now + REFRESH_TOKEN_TTL_MS },
+      { tokenHash: hash(accessToken), kind: "access", clientId, expiresAt: now + ACCESS_TOKEN_TTL_SECONDS * 1000, grantedAt, credential, codeHash },
+      {
+        tokenHash: hash(refreshToken),
+        kind: "refresh",
+        clientId,
+        expiresAt: Math.min(now + REFRESH_TOKEN_TTL_MS, grantedAt + REFRESH_MAX_LIFETIME_MS),
+        grantedAt,
+        credential,
+        codeHash,
+      },
     ])
     .run();
   return { access_token: accessToken, token_type: "Bearer", expires_in: ACCESS_TOKEN_TTL_SECONDS, refresh_token: refreshToken };
 }
 
 /**
- * Revokes a live refresh token of the client and returns true; false when it is unknown,
- * of another client, expired or already revoked. One atomic statement, like `consumeCode`.
+ * Revokes a live refresh token of the client and returns its lineage; undefined when it is
+ * unknown, of another client, expired, older than 90 days, issued under another password or
+ * already revoked. One atomic statement, like `consumeCode`.
  */
-export function revokeRefreshToken(refreshToken: string, clientId: string): boolean {
-  const revoked = getDb()
+export function revokeRefreshToken(refreshToken: string, clientId: string): Lineage | undefined {
+  const credential = currentCredential();
+  if (!credential) return undefined;
+  const now = Date.now();
+  return getDb()
     .update(oauthTokens)
     .set({ revoked: 1 })
     .where(
@@ -86,17 +115,20 @@ export function revokeRefreshToken(refreshToken: string, clientId: string): bool
         eq(oauthTokens.kind, "refresh"),
         eq(oauthTokens.clientId, clientId),
         eq(oauthTokens.revoked, 0),
-        gt(oauthTokens.expiresAt, Date.now()),
+        eq(oauthTokens.credential, credential),
+        gt(oauthTokens.expiresAt, now),
+        gt(oauthTokens.grantedAt, now - REFRESH_MAX_LIFETIME_MS),
       ),
     )
-    .returning({ tokenHash: oauthTokens.tokenHash })
-    .all();
-  return revoked.length > 0;
+    .returning({ grantedAt: oauthTokens.grantedAt, codeHash: oauthTokens.codeHash })
+    .get();
 }
 
-/** True for a live (unexpired, unrevoked) access token; any storage failure refuses. */
+/** True for a live (unexpired, unrevoked) access token of the current password; any storage failure refuses. */
 export function isValidAccessToken(token: string): boolean {
   try {
+    const credential = currentCredential();
+    if (!credential) return false;
     const row = getDb()
       .select({ tokenHash: oauthTokens.tokenHash })
       .from(oauthTokens)
@@ -105,6 +137,7 @@ export function isValidAccessToken(token: string): boolean {
           eq(oauthTokens.tokenHash, hash(token)),
           eq(oauthTokens.kind, "access"),
           eq(oauthTokens.revoked, 0),
+          eq(oauthTokens.credential, credential),
           gt(oauthTokens.expiresAt, Date.now()),
         ),
       )

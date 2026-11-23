@@ -100,7 +100,10 @@ export const oauthCodes = sqliteTable("oauth_codes", {
 
 /**
  * Access and refresh tokens issued to a client. Only the SHA-256 hash is stored;
- * `expires_at` is in milliseconds since the epoch, `revoked` is 0 or 1.
+ * `expires_at` and `granted_at` (the original login, carried over on refresh) are in milliseconds
+ * since the epoch, `revoked` is 0 or 1. `credential` is the generation of the owner's password
+ * the token was issued under: changing the password invalidates every token. `code_hash` is the
+ * authorization code the token descends from, so a replayed code can revoke what it produced.
  */
 export const oauthTokens = sqliteTable("oauth_tokens", {
   tokenHash: text("token_hash").primaryKey(),
@@ -109,5 +112,8 @@ export const oauthTokens = sqliteTable("oauth_tokens", {
     .notNull()
     .references(() => oauthClients.clientId, { onDelete: "cascade" }),
   expiresAt: integer("expires_at").notNull(),
+  grantedAt: integer("granted_at").notNull(),
+  credential: text("credential").notNull(),
+  codeHash: text("code_hash").notNull(),
   revoked: integer("revoked").notNull().default(0),
 });

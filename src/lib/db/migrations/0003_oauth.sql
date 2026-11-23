@@ -20,6 +20,9 @@ CREATE TABLE `oauth_tokens` (
 	`kind` text NOT NULL,
 	`client_id` text NOT NULL,
 	`expires_at` integer NOT NULL,
+	`granted_at` integer NOT NULL,
+	`credential` text NOT NULL,
+	`code_hash` text NOT NULL,
 	`revoked` integer DEFAULT 0 NOT NULL,
 	FOREIGN KEY (`client_id`) REFERENCES `oauth_clients`(`client_id`) ON UPDATE no action ON DELETE cascade
 );

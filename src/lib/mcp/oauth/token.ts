@@ -1,6 +1,6 @@
 // Token endpoint (RFC 6749 + PKCE S256): authorization_code and refresh_token grants for public clients.
 import { createHash, timingSafeEqual } from "node:crypto";
-import { getPublicUrl, jsonResponse, notConfigured } from "./config";
+import { getPublicUrl, jsonResponse, notConfigured, readBoundedText } from "./config";
 import { consumeCode, findClient, issueTokens, revokeRefreshToken } from "./store";
 
 type TokenError = "invalid_request" | "invalid_client" | "invalid_grant" | "unsupported_grant_type";
@@ -36,29 +36,31 @@ function exchangeCode(form: URLSearchParams, clientId: string): Response {
     pkceMatches(verifier, grant.codeChallenge);
   if (!valid) return tokenError("invalid_grant", "The authorization code is invalid or expired.");
 
-  return jsonResponse(issueTokens(clientId), 200, { Pragma: "no-cache" });
+  const tokens = issueTokens(clientId, { grantedAt: Date.now(), codeHash: grant.codeHash });
+  if (!tokens) return tokenError("invalid_grant", "The authorization code is invalid or expired.");
+  return jsonResponse(tokens, 200, { Pragma: "no-cache" });
 }
 
 function refresh(form: URLSearchParams, clientId: string): Response {
   const refreshToken = form.get("refresh_token");
   if (!refreshToken) return tokenError("invalid_request", "refresh_token is required.");
 
-  // Rotation: the old refresh token dies with the exchange, so a replay is refused.
-  if (!revokeRefreshToken(refreshToken, clientId)) return tokenError("invalid_grant", "The refresh token is invalid or expired.");
+  // Rotation: the old refresh token dies with the exchange, so a replay is refused. The new pair
+  // keeps the time of the original login, which bounds the whole chain.
+  const lineage = revokeRefreshToken(refreshToken, clientId);
+  const tokens = lineage && issueTokens(clientId, lineage);
+  if (!tokens) return tokenError("invalid_grant", "The refresh token is invalid or expired.");
 
-  return jsonResponse(issueTokens(clientId), 200, { Pragma: "no-cache" });
+  return jsonResponse(tokens, 200, { Pragma: "no-cache" });
 }
 
 /** POST /oauth/token (application/x-www-form-urlencoded) */
 export async function issueToken(request: Request): Promise<Response> {
   if (!getPublicUrl()) return notConfigured();
 
-  let form: URLSearchParams;
-  try {
-    form = new URLSearchParams(await request.text());
-  } catch {
-    return tokenError("invalid_request", "The body must be form-urlencoded.");
-  }
+  const text = await readBoundedText(request).catch(() => undefined);
+  if (text === undefined) return jsonResponse({ error: "invalid_request", error_description: "Request body too large." }, 413);
+  const form = new URLSearchParams(text);
 
   const grantType = form.get("grant_type");
   if (!grantType) return tokenError("invalid_request", "grant_type is required.");

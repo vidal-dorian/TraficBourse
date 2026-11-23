@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "125b0f8b-09e8-4755-ae30-6c572a68a4ed",
+  "id": "61936d1e-313d-4f86-98eb-0cc15cfda4ed",
   "prevId": "f74cec02-731d-4a62-90c8-373a4e0f9e30",
   "tables": {
     "app_meta": {
@@ -408,6 +408,27 @@
         "expires_at": {
           "name": "expires_at",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "credential": {
+          "name": "credential",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
