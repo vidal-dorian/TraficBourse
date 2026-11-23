@@ -107,7 +107,7 @@ Faire le même essai pour la tâche du samedi (`kind` `weekly`) avant le premier
 | Symptôme | Cause probable |
 | --- | --- |
 | Le connecteur ou un appel répond `401` | Jeton absent ou différent de `MCP_TOKEN` ; `MCP_TOKEN` vide dans le `.env` alors que le connecteur utilise l'option A (l'option A est alors refusée, par sécurité) ; `web` pas relancé après la modification ; session OAuth expirée ou révoquée (se reconnecter). |
-| `401` avant même d'arriver à l'app, ou page de connexion Cloudflare | La règle Bypass ne couvre pas `/api/mcp` (ou un chemin OAuth) : voir la section 2. |
+| `401` avant même d'arriver à l'app, ou page de connexion Cloudflare | L'application Access de contournement (section 2) ne couvre pas `/api/mcp` (ou un chemin OAuth). |
 | OAuth : les points de terminaison répondent `503` | `PUBLIC_URL` absent du `.env`. |
 | OAuth : connexion refusée, ou `429` | Mot de passe faux, ou trop d'essais ratés : verrouillage de 15 minutes après 5 échecs. |
 | `publish_brief` renvoie une erreur de validation | Le résultat liste toutes les erreurs, une ligne « chemin : message » par champ (par exemple `payload.news.0.sourceUrl : …`). Un champ de trop (`stockNotes`, `concept`, `storylineUpdates`, `chart`) est aussi une erreur : vérifier que le prompt des tâches est la version de [prompt-tache-planifiee.md](./prompt-tache-planifiee.md). La tâche corrige et recommence ; rien n'est écrit tant que la validation échoue. |
