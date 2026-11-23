@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBriefsOfDate } from "@/lib/briefs/archives";
 import { getDb } from "@/lib/db/client";
@@ -27,11 +26,6 @@ export default async function BriefPage({ params }: { params: Promise<{ date: st
           </section>
         ))}
       </div>
-      <p className="mt-10 border-t border-neutral-200 pt-6">
-        <Link href="/archives" className="underline underline-offset-2">
-          Tous les briefs (archives)
-        </Link>
-      </p>
     </main>
   );
 }
