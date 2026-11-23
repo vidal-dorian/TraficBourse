@@ -96,11 +96,11 @@ from `.env.example`. Variables read by Compose:
 Cloudflare Tunnel and Caddy. Do not set it to `0.0.0.0` or a LAN address: Docker writes its
 own iptables rules ahead of ufw, so anyone on the LAN (or through a router port-forward or a
 routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudflare Access on
-`/admin` and the rate limit on `/api/mcp`.
+`/admin` and the rate limits on `/api/mcp` and `/oauth/*`.
 
 The same `.env` is passed to the containers, with the app settings listed in
 [README.md](./README.md#configuration). Set `MCP_TOKEN` there (`openssl rand -hex 32`): without
-it, every request on `/api/mcp` answers `401`. Never commit it.
+it, option A is off: a request on `/api/mcp` without a valid OAuth token answers `401`. Never commit it.
 
 To connect the Claude connector through OAuth instead of a header (`CLAUDE.md` §8, option B; details in [README.md](./README.md#oauth-login-for-the-claude-connector)), also set in `.env`:
 
@@ -113,7 +113,7 @@ OAuth rows (clients, codes, tokens) that expired are not purged yet; they stay i
 
 - **Access bypass**: Claude cannot pass Access, so if an Access application covers these paths (for example one on the whole host name), bypass exactly `/api/mcp`, `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token` and `/oauth/authorize`, and nothing broader. `/admin` stays behind Access.
 - **Rate limiting**: add a Cloudflare rate-limit rule on `/oauth/*` as well as on `/api/mcp`. The app also locks the login after 5 wrong passwords per address, but only Cloudflare stops the flood before it reaches the Pi.
-- **Client address**: the login lockout reads the `CF-Connecting-IP` header. Caddy must not let a client on the LAN forge it: keep the site reachable only through the tunnel (bind it to loopback, or to the tunnel's address, never to the LAN), or strip the header from requests that did not come from Cloudflare. A forged address would let an attacker dodge the per-address lockout.
+- **Client address**: the login lockout reads the `CF-Connecting-IP` header. Caddy must not let a client on the LAN forge it: keep the site reachable only through the tunnel (bind Caddy's listen address to loopback, or to the tunnel's address, never to the LAN), or strip the header from requests that did not come from Cloudflare. A forged address would let an attacker dodge the per-address lockout.
 
 ## 5. Log in to GHCR
 
