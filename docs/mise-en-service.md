@@ -85,7 +85,9 @@ contrat, recopier le prompt mis à jour dans les deux tâches.
 
 3. Résultat attendu : une ligne `briefs` en `status` `published` pour la date du jour et `kind` `daily`,
    avec ses actualités ; dans `mcp_audit`, au moins `get_recent_briefs`, puis `publish_brief` deux fois
-   (`dry_run` à true, puis à false), toutes avec `ok` à 1 et `error` vide. L'heure `at` est en UTC.
+   (`dry_run` à true, puis à false). Le dernier `publish_brief` (`dry_run` à false) a `ok` à 1 et `error`
+   vide ; une ligne antérieure à `ok` 0 avec une erreur de validation est normale si Claude a corrigé son
+   brief après l'essai à blanc. L'heure `at` est en UTC.
 4. Relancer la tâche est sans danger : le brief d'une date et d'un type est remplacé, jamais dupliqué.
 5. Le brief s'affichera sur « Aujourd'hui » quand le ticket T4 (pages publiques) sera livré ; d'ici là, la
    vérification passe par la base.
@@ -96,7 +98,7 @@ Faire le même essai pour la tâche du samedi (`kind` `weekly`) avant le premier
 
 | Symptôme | Cause probable |
 | --- | --- |
-| Le connecteur ou un appel répond `401` | Jeton absent ou différent de `MCP_TOKEN` ; `MCP_TOKEN` vide dans le `.env` (l'app refuse tout, par sécurité) ; `web` pas relancé après la modification ; session OAuth expirée ou révoquée (se reconnecter). |
+| Le connecteur ou un appel répond `401` | Jeton absent ou différent de `MCP_TOKEN` ; `MCP_TOKEN` vide dans le `.env` alors que le connecteur utilise l'option A (l'option A est alors refusée, par sécurité) ; `web` pas relancé après la modification ; session OAuth expirée ou révoquée (se reconnecter). |
 | `401` avant même d'arriver à l'app, ou page de connexion Cloudflare | La règle Bypass ne couvre pas `/api/mcp` (ou un chemin OAuth) : voir la section 2. |
 | OAuth : les points de terminaison répondent `503` | `PUBLIC_URL` absent du `.env`. |
 | OAuth : connexion refusée, ou `429` | Mot de passe faux, ou trop d'essais ratés : verrouillage de 15 minutes après 5 échecs. |
