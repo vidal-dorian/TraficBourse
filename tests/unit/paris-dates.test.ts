@@ -1,7 +1,8 @@
 // US #14 — Paris calendar dates and day arithmetic on "YYYY-MM-DD" strings, used by
-// get_recent_briefs to compute its window whatever the server's time zone.
+// get_recent_briefs to compute its window whatever the server's time zone. US #16 — the French
+// month headings of the archives page.
 import { describe, expect, it } from "vitest";
-import { parisToday, subtractDays } from "../../src/lib/dates/paris";
+import { formatFrenchMonth, parisToday, subtractDays } from "../../src/lib/dates/paris";
 
 describe("parisToday", () => {
   it.each([
@@ -32,5 +33,17 @@ describe("subtractDays", () => {
     ["2026-11-21", -10, "2026-12-01"],
   ])("%s minus %i days is %s", (date, days, expected) => {
     expect(subtractDays(date, days)).toBe(expected);
+  });
+});
+
+describe("formatFrenchMonth", () => {
+  it.each([
+    ["2026-11-01", "novembre 2026"],
+    ["2026-11-30", "novembre 2026"],
+    ["2026-01-01", "janvier 2026"],
+    ["2025-12-31", "décembre 2025"],
+    ["2026-08-01", "août 2026"],
+  ])("%s is in %s", (date, expected) => {
+    expect(formatFrenchMonth(date)).toBe(expected);
   });
 });

@@ -39,3 +39,10 @@ export function formatFrenchDate(date: string): string {
   // A calendar date, not an instant: read and written at UTC midnight so no time zone shifts it.
   return frenchDateFormat.format(new Date(`${date}T00:00:00Z`));
 }
+
+const frenchMonthFormat = new Intl.DateTimeFormat("fr-FR", { timeZone: "UTC", month: "long", year: "numeric" });
+
+/** The month of `date` ("YYYY-MM-DD") written out in French, e.g. "novembre 2026". */
+export function formatFrenchMonth(date: string): string {
+  return frenchMonthFormat.format(new Date(`${date}T00:00:00Z`));
+}
