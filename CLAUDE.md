@@ -154,6 +154,8 @@ No delete tool is exposed.
 
 Implemented today (`src/lib/schemas/brief.ts`, US #13): `tldr`, `mood` and `news` (1 to 5 items with `title`, `summary`, `whyItMatters`, `impact`, `category`, `tickers`, `sourceName`, `sourceUrl`). `stockNotes`, `concept`, `storylineUpdates` and a news item's `chart` come with later tickets; until then objects are strict, so sending them is a validation error; unknown top-level tool arguments are rejected too. Also enforced: required texts not blank, `sourceUrl` an absolute http(s) URL (≤ 2048 chars, no `user@` part), `sourceName` ≤ 120, at most 10 `tickers` of 1–20 chars (letters, digits, `. ^ = -`).
 
+`get_recent_briefs` is implemented too (US #14, `src/lib/briefs/recent.ts`, dates in `src/lib/dates/paris.ts`): `days` 1–30 (default 7), `published` briefs dated from Paris today − `days` to Paris today, date descending then weekly before daily, each entry `{ date, kind, tldr, newsTitles }`; `structuredContent` `{ days, since, briefs }`, empty window → `briefs: []`. Details in `README.md`.
+
 ```ts
 const Category = z.enum(["monde", "geopolitique", "energie", "macro", "taux", "entreprises", "crypto"]);
 
