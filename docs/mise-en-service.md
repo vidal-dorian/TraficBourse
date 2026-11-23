@@ -22,7 +22,7 @@ décrit. Le prompt des tâches est dans [prompt-tache-planifiee.md](./prompt-tac
 Claude ne peut pas passer Cloudflare Access (code à usage unique par e-mail). L'app protège donc elle-même
 `/api/mcp` et les chemins OAuth ; Access doit seulement les laisser passer.
 
-1. Application Access qui protège `/admin`, avec une règle Allow sur votre e-mail. Elle est décrite dans le
+1. Application Access qui protège `/admin` (elle reste protégée par Access), avec une règle Allow sur votre e-mail. Elle est décrite dans le
    [README](../README.md#cloudflare-access-setup-manual-done-once-in-the-zero-trust-dashboard).
 2. Dans Zero Trust, créer une **seconde** application Access, auto-hébergée (self-hosted), sur le même nom
    d'hôte, dont les destinations sont exactement ces chemins, sans `*` :
