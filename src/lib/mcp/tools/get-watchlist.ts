@@ -35,11 +35,11 @@ type WatchlistEntry = {
   reasons: Reason[];
 };
 
-/** WATCHLIST_MOVE_THRESHOLD in percent: a positive finite number, else the default 2. */
+/** WATCHLIST_MOVE_THRESHOLD in percent: a positive finite number (decimal comma accepted), else the default 2. */
 function moveThreshold(): number {
   const raw = process.env.WATCHLIST_MOVE_THRESHOLD?.trim();
   if (!raw) return DEFAULT_THRESHOLD;
-  const value = Number(raw);
+  const value = Number(raw.replace(",", "."));
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_THRESHOLD;
 }
 
@@ -56,16 +56,16 @@ function dayMonth(date: string): string {
 }
 
 function describeEntry(entry: WatchlistEntry): string {
-  const head = `- ${entry.name} (${entry.symbol}) : `;
-  if (entry.lastClose === null) return `${head}Pas encore de cours, n'a pas bougé.`;
-  const old = entry.stale ? " (cours ancien)" : "";
-  const close = `clôture ${formatClose(entry.lastClose, entry.type, entry.currency)} au ${entry.lastCloseDate}${old} ; `;
-  const { day, week } = entry.variations;
-  const figures = `1 jour ${percent(day)}, 1 semaine ${percent(week)} ; `;
   const why: string[] = [];
   if (entry.reasons.includes("move")) why.push("variation du jour au-dessus du seuil");
   if (entry.reasons.includes("earnings") && entry.lastEarningsDate) why.push(`résultats publiés le ${dayMonth(entry.lastEarningsDate)}`);
-  return `${head}${close}${figures}${entry.moved ? `a bougé (${why.join(", ")}).` : "n'a pas bougé."}`;
+  const verdict = entry.moved ? `a bougé (${why.join(", ")}).` : "n'a pas bougé.";
+  const head = `- ${entry.name} (${entry.symbol}) : `;
+  if (entry.lastClose === null) return `${head}Pas encore de cours ; ${verdict}`;
+  const old = entry.stale ? " (cours ancien)" : "";
+  const close = `clôture ${formatClose(entry.lastClose, entry.type, entry.currency)} au ${entry.lastCloseDate}${old} ; `;
+  const { day, week } = entry.variations;
+  return `${head}${close}1 jour ${percent(day)}, 1 semaine ${percent(week)} ; ${verdict}`;
 }
 
 export const getWatchlistTool: McpTool<typeof inputSchema> = {
