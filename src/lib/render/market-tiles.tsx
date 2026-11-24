@@ -26,7 +26,7 @@ export function curvePoints(curve: MarketTile["curve"]): string {
 }
 
 /** « +1,25 % », « −0,80 % » (real minus sign), « 0,00 % » or « n/d », with its colour class. */
-function variationLabel(variation: number | null): { text: string; className: string } {
+export function variationLabel(variation: number | null): { text: string; className: string } {
   if (variation === null) return { text: "n/d", className: "text-neutral-500" };
   const number = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(variation));
   if (variation > 0) return { text: `+${number} %`, className: "text-green-700" };
