@@ -2,6 +2,7 @@
 import type { McpTool } from "../server";
 import { getMarketSnapshotTool } from "./get-market-snapshot";
 import { getRecentBriefsTool } from "./get-recent-briefs";
+import { getWatchlistTool } from "./get-watchlist";
 import { publishBriefTool } from "./publish-brief";
 
-export const mcpTools: readonly McpTool[] = [publishBriefTool, getRecentBriefsTool, getMarketSnapshotTool];
+export const mcpTools: readonly McpTool[] = [publishBriefTool, getRecentBriefsTool, getMarketSnapshotTool, getWatchlistTool];

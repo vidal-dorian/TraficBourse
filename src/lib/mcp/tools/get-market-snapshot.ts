@@ -2,7 +2,6 @@
 // variations are computed by the app from its own closes, so Claude quotes the same figures as the
 // charts and never states a market number of its own.
 import { lte } from "drizzle-orm";
-import { z } from "zod";
 import { parisToday } from "@/lib/dates/paris";
 import { getDb } from "@/lib/db/client";
 import { instruments, pricesDaily } from "@/lib/db/schema";
@@ -10,22 +9,12 @@ import { formatClose } from "@/lib/market/format";
 import { isStale } from "@/lib/market/latest";
 import { computeVariations, type DatedClose, type Variations } from "@/lib/market/snapshot";
 import type { McpTool } from "../server";
-
-const DATE_MESSAGE = "Date attendue au format AAAA-MM-JJ, un jour réel du calendrier.";
-
-/** "YYYY-MM-DD" naming a real calendar day (2026-02-30 is refused). */
-function isRealDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
+import { optionalDate } from "./date-argument";
 
 const inputSchema = {
-  date: z
-    .string(DATE_MESSAGE)
-    .refine(isRealDate, DATE_MESSAGE)
-    .optional()
-    .describe("Jour de l'instantané (AAAA-MM-JJ) ; aujourd'hui (Europe/Paris) par défaut. Les cours postérieurs sont ignorés."),
+  date: optionalDate(
+    "Jour de l'instantané (AAAA-MM-JJ) ; aujourd'hui (Europe/Paris) par défaut. Les cours postérieurs sont ignorés.",
+  ),
 };
 
 type SnapshotEntry = {
