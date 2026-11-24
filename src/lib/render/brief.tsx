@@ -44,7 +44,7 @@ function joinNames(names: string[]): string {
 }
 
 /** The chart of a news item: the curves, a caption, and the same figures as a table for screen readers. */
-function ChartFigure({ chart }: { chart: ChartData }) {
+export function ChartFigure({ chart }: { chart: ChartData }) {
   const names = chart.series.map((series) => series.name ?? series.symbol);
   const caption = `${joinNames(names)} — ${RANGE_LABELS[chart.range]}${chart.normalize ? ", base 100" : ""}`;
   const dates = [...new Set(chart.series.flatMap((series) => series.points.map((point) => point.date)))].sort();
