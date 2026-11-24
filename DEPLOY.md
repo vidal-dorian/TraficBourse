@@ -99,7 +99,7 @@ routable IPv6 address) could reach `http://<pi>:3000` directly and skip Cloudfla
 `/admin` and the rate limits on `/api/mcp` and `/oauth/*`.
 
 The same `.env` is passed to the containers, with the app settings listed in
-[README.md](./README.md#configuration). Set `MCP_TOKEN` there (`openssl rand -hex 32`): without
+[README.md](./README.md#configuration) (among them the optional `WATCHLIST_MOVE_THRESHOLD`, the day move in percent from which `get_watchlist` flags a stock, 2 by default). Set `MCP_TOKEN` there (`openssl rand -hex 32`): without
 it, option A is off: a request on `/api/mcp` without a valid OAuth token answers `401`. Never commit it.
 
 To connect the Claude connector through OAuth instead of a header (`CLAUDE.md` §8, option B; details in [README.md](./README.md#oauth-login-for-the-claude-connector)), also set in `.env`:

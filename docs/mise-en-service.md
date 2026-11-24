@@ -58,7 +58,7 @@ Si le jeton fuit (par exemple une capture d'écran de la boîte de dialogue du c
 dans `MCP_TOKEN` du `.env`, relancer `web`, puis mettre à jour l'en-tête du connecteur.
 
 Ne jamais utiliser de connecteur sans authentification qui compterait sur une URL secrète. Une fois ajouté,
-le connecteur doit lister les outils `publish_brief`, `get_recent_briefs` et `get_market_snapshot`.
+le connecteur doit lister les outils `publish_brief`, `get_recent_briefs`, `get_market_snapshot` et `get_watchlist`.
 
 ## 4. Créer les deux tâches planifiées
 
@@ -92,7 +92,7 @@ contrat, recopier le prompt mis à jour dans les deux tâches.
    ```
 
 3. Résultat attendu : une ligne `briefs` en `status` `published` pour la date du jour et `kind` `daily`,
-   avec ses actualités ; dans `mcp_audit`, au moins `get_market_snapshot` et `get_recent_briefs`, puis `publish_brief` deux fois
+   avec ses actualités ; dans `mcp_audit`, au moins `get_market_snapshot`, `get_watchlist` et `get_recent_briefs`, puis `publish_brief` deux fois
    (`dry_run` à true, puis à false). Le dernier `publish_brief` (`dry_run` à false) a `ok` à 1 et `error`
    vide ; une ligne antérieure à `ok` 0 avec une erreur de validation est normale si Claude a corrigé son
    brief après l'essai à blanc. L'heure `at` est en UTC.
