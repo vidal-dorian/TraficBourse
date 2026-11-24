@@ -4,7 +4,7 @@ Version **en vigueur** du prompt des deux tâches planifiées de claude.ai (sema
 source de vérité : on la copie telle quelle dans la tâche (voir [mise-en-service.md](./mise-en-service.md)).
 Le prompt cible, avec tous les outils prévus, reste en annexe A du `CLAUDE.md`.
 
-Il ne demande que ce que l'app accepte aujourd'hui : trois outils, `get_market_snapshot` et `get_recent_briefs`
+Il ne demande que ce que l'app accepte aujourd'hui (dont, depuis l'US #22, un graphique facultatif par actualité) : trois outils, `get_market_snapshot` et `get_recent_briefs`
 (lecture) et `publish_brief` (écriture). Tout autre champ ou outil serait refusé ou n'existerait pas.
 
 ## Brief de la semaine (lundi au vendredi, `kind` = `daily`)
@@ -42,6 +42,15 @@ Arguments de publish_brief :
     - tickers : liste de 10 symboles au plus (1 à 20 caractères : lettres, chiffres et . ^ = -), vide si aucun.
     - sourceName : 120 caractères au plus.
     - sourceUrl : URL absolue en http ou https, 2048 caractères au plus, sans identifiant avant « @ ».
+    - chart (facultatif : ajoute-le seulement quand un graphique aide à comprendre l'actualité, sinon omets la clé) : une
+      spécification, jamais de valeurs, avec exactement ces clés :
+      - type : "price".
+      - symbols : de 1 à 3 symboles différents, pris uniquement dans les instruments renvoyés par
+        get_market_snapshot (un symbole inconnu fait refuser la publication).
+      - range : "5D", "1M", "3M", "YTD" ou "1Y".
+      - normalize : true pour comparer plusieurs instruments en base 100, sinon false (valeur par défaut).
+      L'app dessine elle-même les courbes avec ses cours ; ne cite pas de chiffre qui n'est pas dans
+      get_market_snapshot.
   Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
   Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
   aucune autre clé : elle serait refusée.
@@ -84,7 +93,8 @@ Arguments de publish_brief :
 - kind : "weekly".
 - dry_run : true puis false.
 - payload : mêmes clés, mêmes limites et mêmes valeurs que pour le brief quotidien (tldr, mood, news de 1 à 5
-  actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl). Le tldr
+  actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl et, si utile,
+  chart). Le tldr
   résume la semaine ; mood est l'humeur de la semaine. N'envoie aucune autre clé.
 
 Règles :
@@ -111,8 +121,9 @@ claude.ai, et garder l'annexe A du `CLAUDE.md` alignée :
   graphiques arriveront, vérifier que les chiffres cités restent ceux de l'app.
 - `get_watchlist` et les notes par valeur : le brief quotidien aura des notes pour les valeurs qui ont
   bougé, le récapitulatif du samedi pour **toutes** les valeurs de la watchlist (règle serveur).
-- Graphiques d'une actualité : une spécification de graphique, jamais de valeurs.
+- Graphiques d'une actualité (fait, US #22) : une spécification `chart`, jamais de valeurs ; les symboles viennent
+  de get_market_snapshot.
 - `list_storylines`, `upsert_storyline`, `add_calendar_events`, `get_learning_progress` (phase 3) : fils
   rouges, agenda et notion du jour à expliquer.
-- Les clés que le schéma refuse aujourd'hui (`stockNotes`, `concept`, `storylineUpdates`, `chart`) ne
+- Les clés que le schéma refuse aujourd'hui (`stockNotes`, `concept`, `storylineUpdates`) ne
   doivent être demandées qu'une fois acceptées par le serveur.
