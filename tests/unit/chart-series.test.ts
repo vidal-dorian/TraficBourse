@@ -94,10 +94,10 @@ describe("C86 — the window only keeps closes in the range", () => {
     expect(dates(result.series[0])).toEqual(["2026-03-01"]);
   });
 
-  it("given 5D ending 2026-11-23, when computed, then 2026-11-17 is out and 2026-11-18 is in", async () => {
+  it("given 5D ending 2026-11-23, when computed, then 2026-11-16 is out and 2026-11-17 is in", async () => {
     const { computeChartSeries } = await chartModule();
     const result = computeChartSeries(spec({ range: "5D" }), { "^FCHI": [c("2026-11-16", 1), c("2026-11-17", 2), c("2026-11-18", 3)] }, "2026-11-23");
-    expect(dates(result.series[0])).toEqual(["2026-11-18"]);
+    expect(dates(result.series[0])).toEqual(["2026-11-17", "2026-11-18"]);
   });
 
   it("given 3M ending 2026-11-23, when computed, then 2026-08-23 is out and 2026-08-24 is in", async () => {

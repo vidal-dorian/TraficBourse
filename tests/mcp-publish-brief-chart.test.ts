@@ -164,7 +164,7 @@ describe("C85 — known symbols are published and the spec is stored", () => {
     const client = await connect();
     const { tools } = await client.listTools();
     const tool = tools.find((t) => t.name === "publish_brief");
-    const schema = tool?.inputSchema as { properties: { payload: { properties: { news: { items: { properties: Record<string, unknown> } } } } } };
+    const schema = tool?.inputSchema as unknown as { properties: { payload: { properties: { news: { items: { properties: Record<string, unknown> } } } } } };
     expect(Object.keys(schema.properties.payload.properties.news.items.properties)).toContain("chart");
   });
 });
