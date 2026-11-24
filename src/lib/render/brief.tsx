@@ -2,8 +2,10 @@
 // mood, the TL;DR and every news item. Markdown fields go through the sanitized renderer, titles
 // and source names stay plain text.
 import Image from "next/image";
+import { PriceChart } from "@/components/price-chart";
 import type { BriefWithNews } from "@/lib/briefs/latest";
 import { formatFrenchDate } from "@/lib/dates/paris";
+import type { ChartData } from "@/lib/market/chart";
 import { ExternalLink, Markdown, safeHref } from "@/lib/render/markdown";
 import type { BriefKind, Mood } from "@/lib/schemas/brief";
 
@@ -17,6 +19,65 @@ const MOOD_LABELS: Record<Mood, string> = {
 export function briefTitle(kind: BriefKind, date: string): string {
   const french = formatFrenchDate(date);
   return kind === "weekly" ? `Récap de la semaine — ${french}` : french;
+}
+
+const RANGE_LABELS: Record<ChartData["range"], string> = {
+  "5D": "5 jours",
+  "1M": "1 mois",
+  "3M": "3 mois",
+  YTD: "depuis le 1er janvier",
+  "1Y": "1 an",
+};
+
+const frenchNumber = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** « CAC 40 et S&P 500 », « CAC 40, S&P 500 et Nasdaq 100 ». */
+function joinNames(names: string[]): string {
+  return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} et ${names.at(-1)}`;
+}
+
+/** The chart of a news item: the curves, a caption, and the same figures as a table for screen readers. */
+function ChartFigure({ chart }: { chart: ChartData }) {
+  const names = chart.series.map((series) => series.name ?? series.symbol);
+  const caption = `${joinNames(names)} — ${RANGE_LABELS[chart.range]}${chart.normalize ? ", base 100" : ""}`;
+  const dates = [...new Set(chart.series.flatMap((series) => series.points.map((point) => point.date)))].sort();
+  const valueAt = (series: ChartData["series"][number], date: string) => series.points.find((point) => point.date === date)?.value;
+
+  return (
+    <figure className="mt-4">
+      {dates.length === 0 ? (
+        <p className="text-sm text-neutral-600">Pas encore de cours pour ce graphique.</p>
+      ) : (
+        <>
+          <PriceChart series={chart.series} />
+          <table className="sr-only">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                {names.map((name) => (
+                  <th key={name} scope="col">
+                    {name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dates.map((date) => (
+                <tr key={date}>
+                  <th scope="row">{date}</th>
+                  {chart.series.map((series) => {
+                    const value = valueAt(series, date);
+                    return <td key={series.symbol}>{value === undefined ? "—" : frenchNumber.format(value)}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      <figcaption className="mt-1 text-sm text-neutral-600">{caption}</figcaption>
+    </figure>
+  );
 }
 
 export function BriefContent({ brief }: { brief: BriefWithNews }) {
@@ -41,6 +102,7 @@ export function BriefContent({ brief }: { brief: BriefWithNews }) {
             <Markdown text={item.whyItMatters} className="mt-1 leading-relaxed" />
             <h3 className="mt-4 font-semibold">Impact possible</h3>
             <Markdown text={item.impact} className="mt-1 leading-relaxed" />
+            {item.chart ? <ChartFigure chart={item.chart} /> : null}
             <p className="mt-4 text-sm text-neutral-600">
               Source : {sourceHref ? <ExternalLink href={sourceHref}>{item.sourceName}</ExternalLink> : item.sourceName}
             </p>
