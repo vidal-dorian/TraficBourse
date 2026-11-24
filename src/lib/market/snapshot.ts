@@ -1,6 +1,6 @@
 // Variations of one instrument (US #20), computed by the app so that Claude quotes the same
 // figures as the charts. Pure: the caller reads the closes, this module only does the arithmetic.
-import { subtractDays } from "../dates/paris";
+import { subtractDays, subtractMonths } from "../dates/paris";
 
 export interface DatedClose {
   /** "YYYY-MM-DD". */
@@ -22,13 +22,6 @@ export interface InstrumentVariations {
 }
 
 const NO_VARIATIONS: Variations = { day: null, week: null, month: null, ytd: null };
-
-/** `date` minus one calendar month, the day clamped to the end of the shorter month (31 March -> 28 February). */
-function subtractOneMonth(date: string): string {
-  const [year, month, day] = date.split("-").map(Number);
-  const daysInPreviousMonth = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
-  return new Date(Date.UTC(year, month - 2, Math.min(day, daysInPreviousMonth))).toISOString().slice(0, 10);
-}
 
 /** Percentage change from `reference` to `last`, rounded to 2 decimals; null without a usable reference. */
 function percentChange(last: number, reference: number | undefined): number | null {
@@ -54,7 +47,7 @@ export function computeVariations(closes: readonly DatedClose[], date: string): 
     variations: {
       day: percentChange(last.close, known.at(-2)?.close),
       week: percentChange(last.close, closeOnOrBefore(subtractDays(last.date, 7))),
-      month: percentChange(last.close, closeOnOrBefore(subtractOneMonth(last.date))),
+      month: percentChange(last.close, closeOnOrBefore(subtractMonths(last.date, 1))),
       ytd: percentChange(last.close, closeOnOrBefore(previousYearEnd)),
     },
   };

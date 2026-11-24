@@ -26,6 +26,13 @@ export function subtractDays(date: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
 }
 
+/** `date` minus `months` calendar months, the day clamped to the end of the shorter month (31 March - 1 month = 28 February). */
+export function subtractMonths(date: string, months: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const daysInTargetMonth = new Date(Date.UTC(year, month - months, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month - 1 - months, Math.min(day, daysInTargetMonth))).toISOString().slice(0, 10);
+}
+
 const frenchDateFormat = new Intl.DateTimeFormat("fr-FR", {
   timeZone: "UTC",
   weekday: "long",
