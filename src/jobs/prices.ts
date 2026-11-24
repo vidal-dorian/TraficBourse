@@ -4,7 +4,7 @@ import { eq, max, sql } from "drizzle-orm";
 import { parisToday } from "../lib/dates/paris";
 import type { Db } from "../lib/db/client";
 import { instruments, pricesDaily } from "../lib/db/schema";
-import type { MarketDataProvider } from "../lib/market/provider";
+import type { DailyBar, MarketDataProvider } from "../lib/market/provider";
 
 export interface JobLogger {
   info(message: string): void;
@@ -12,15 +12,22 @@ export interface JobLogger {
 }
 
 export interface PricesJobResult {
-  updated: { symbol: string; bars: number }[];
+  /** `source` is the name of the provider that served the bars. */
+  updated: { symbol: string; bars: number; source: string }[];
   failed: { symbol: string; error: string }[];
 }
 
 export interface PricesJobOptions {
   db: Db;
   provider: MarketDataProvider;
+  /** Asked, with the instrument's `fallbackSymbol`, only for the symbols `provider` failed on. */
+  fallback?: MarketDataProvider;
   now?: Date;
   logger?: JobLogger;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** `date` ("YYYY-MM-DD") one calendar year earlier (29 February becomes 28 February). */
@@ -35,11 +42,13 @@ function oneYearBefore(date: string): string {
  * Without history an instrument gets one year (Paris today minus 1 year); otherwise the fetch
  * restarts from its last stored day, inclusive, so a revised close is corrected. Rows are
  * upserted on (symbol, date): running twice the same day leaves no duplicate. A failing symbol
- * is logged and reported, the others go on.
+ * is logged and reported, the others go on. When the primary provider fails on an instrument that has
+ * a `fallbackSymbol`, the fallback provider is asked instead (US #19).
  */
 export async function runPricesJob({
   db,
   provider,
+  fallback,
   now = new Date(),
   logger = console,
 }: PricesJobOptions): Promise<PricesJobResult> {
@@ -55,7 +64,21 @@ export async function runPricesJob({
         .where(eq(pricesDaily.symbol, instrument.symbol))
         .get()?.date;
       const from = last ?? oneYearBefore(today);
-      const fetched = await provider.getDailyBars(instrument.providerSymbol, from, today);
+      let fetched: DailyBar[];
+      let source = provider.name;
+      try {
+        fetched = await provider.getDailyBars(instrument.providerSymbol, from, today);
+      } catch (primaryError) {
+        if (!fallback || !instrument.fallbackSymbol) throw primaryError;
+        const primaryMessage = errorMessage(primaryError);
+        logger.error(`prices: ${instrument.symbol} failed: ${primaryMessage}, trying ${fallback.name}`);
+        try {
+          fetched = await fallback.getDailyBars(instrument.fallbackSymbol, from, today);
+        } catch (fallbackError) {
+          throw new Error(`${primaryMessage}; ${fallback.name}: ${errorMessage(fallbackError)}`);
+        }
+        source = fallback.name;
+      }
       // A bar dated Paris today is a day still trading (24/7 markets, futures, FX at 06:30):
       // its "close" is a live price that would be stored as final. Only finished days are kept.
       const bars = fetched.filter((bar) => bar.date < today);
@@ -71,9 +94,9 @@ export async function runPricesJob({
             .run();
         }
       });
-      result.updated.push({ symbol: instrument.symbol, bars: bars.length });
+      result.updated.push({ symbol: instrument.symbol, bars: bars.length, source });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       result.failed.push({ symbol: instrument.symbol, error: message });
       logger.error(`prices: ${instrument.symbol} failed: ${message}`);
     }
