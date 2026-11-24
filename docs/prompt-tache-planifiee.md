@@ -117,8 +117,8 @@ vérifie que le prompt n'appelle que ceux-là. À chaque ticket qui ajoute un ou
 (`src/lib/schemas/brief.ts`), mettre à jour ce fichier, puis recopier le prompt dans les deux tâches de
 claude.ai, et garder l'annexe A du `CLAUDE.md` alignée :
 
-- `get_market_snapshot` (fait, US #20) : le prompt cite les chiffres de l'app. Quand `get_watchlist` et les
-  graphiques arriveront, vérifier que les chiffres cités restent ceux de l'app.
+- `get_market_snapshot` (fait, US #20) : le prompt cite les chiffres de l'app. Les graphiques (US #22) sont tracés
+  avec les cours de l'app. Quand `get_watchlist` arrivera, vérifier que les chiffres cités restent ceux de l'app.
 - `get_watchlist` et les notes par valeur : le brief quotidien aura des notes pour les valeurs qui ont
   bougé, le récapitulatif du samedi pour **toutes** les valeurs de la watchlist (règle serveur).
 - Graphiques d'une actualité (fait, US #22) : une spécification `chart`, jamais de valeurs ; les symboles viennent
