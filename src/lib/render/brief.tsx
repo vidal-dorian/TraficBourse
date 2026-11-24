@@ -119,7 +119,7 @@ function StockNoteItem({ note }: { note: StockNoteCard }) {
         <p className="mt-2 text-sm text-neutral-600">
           À lire :{" "}
           {refs.map((href, index) => (
-            <span key={href}>
+            <span key={index}>
               {index > 0 ? ", " : null}
               <ExternalLink href={href}>{refs.length > 1 ? `Article ${index + 1}` : "Article"}</ExternalLink>
             </span>

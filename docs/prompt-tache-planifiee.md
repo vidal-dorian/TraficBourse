@@ -51,16 +51,19 @@ Arguments de publish_brief :
       - normalize : true pour comparer plusieurs instruments en base 100, sinon false (valeur par défaut).
       L'app dessine elle-même les courbes avec ses cours ; ne cite pas de chiffre qui n'est pas dans
       get_market_snapshot.
-  - stockNotes (facultatif, liste vide ou clé omise si aucune valeur n'a bougé) : une fiche par action de la
-    watchlist qui a bougé aujourd'hui (variation d'au moins 2 %, résultats publiés ou actualité qui la concerne),
-    chacune avec ces clés, et aucune autre :
-    - symbol : le symbole d'une action de la watchlist de l'app (un symbole hors watchlist fait refuser la
-      publication).
+  - stockNotes (facultatif, liste vide ou clé omise si aucune valeur n'a bougé) : une fiche par action suivie
+    qui a bougé aujourd'hui (variation d'au moins 2 %, résultats publiés ou actualité qui la concerne). Aucun
+    outil ne donne la watchlist : les candidates sont les instruments de type "stock" ou "etf" renvoyés par
+    get_market_snapshot. Chaque fiche a ces clés, et aucune autre :
+    - symbol : le symbole d'une action de la watchlist de l'app. Si le dry run refuse une ligne
+      « payload.stockNotes.N.symbol », supprime cette fiche au lieu de changer le symbole, puis relance le dry run.
     - reason : "move", "earnings" ou "news".
     - summary : ce qui s'est passé pour cette action, 600 caractères au plus, Markdown simple, sans chiffre de
       cours ni de variation (l'app affiche elle-même la variation du jour).
-    - newsRefs (facultatif) : jusqu'à 5 URLs absolues http ou https de pages que tu as réellement lues.
-    - nextEvent (facultatif) : le prochain événement à surveiller, 200 caractères au plus, en texte brut.
+    - newsRefs (facultatif, omets la clé si aucune) : jusqu'à 5 URLs absolues http ou https de pages que tu as
+      réellement lues.
+    - nextEvent (facultatif, omets la clé si aucun) : le prochain événement à surveiller, 200 caractères au plus,
+      en texte brut, jamais vide.
   Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
   Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
   aucune autre clé : elle serait refusée.
@@ -104,7 +107,8 @@ Arguments de publish_brief :
 - dry_run : true puis false.
 - payload : mêmes clés, mêmes limites et mêmes valeurs que pour le brief quotidien (tldr, mood, news de 1 à 5
   actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl et, si utile,
-  chart ; stockNotes facultatif, mêmes clés que pour le brief quotidien). Le tldr
+  chart) et, si utile, stockNotes : mêmes clés que pour le brief quotidien (symbol, summary, newsRefs, nextEvent),
+  avec reason : "weekly" pour chaque fiche, et la même conduite en cas de refus d'un symbole. Le tldr
   résume la semaine ; mood est l'humeur de la semaine. N'envoie aucune autre clé.
 
 Règles :
@@ -129,11 +133,12 @@ claude.ai, et garder l'annexe A du `CLAUDE.md` alignée :
 
 - `get_market_snapshot` (fait, US #20) : le prompt cite les chiffres de l'app. Les graphiques (US #22) sont tracés
   avec les cours de l'app. Quand `get_watchlist` arrivera, vérifier que les chiffres cités restent ceux de l'app.
-- `get_watchlist` et les notes par valeur : le brief quotidien aura des notes pour les valeurs qui ont
-  bougé, le récapitulatif du samedi pour **toutes** les valeurs de la watchlist (règle serveur).
+- Notes par valeur (faites, US #26) : `stockNotes` est accepté, les symboles doivent être dans la watchlist. Reste à
+  venir : `get_watchlist` (la tâche connaîtra sa watchlist) et la règle serveur qui exige, le samedi, une note
+  pour **toutes** les valeurs.
 - Graphiques d'une actualité (fait, US #22) : une spécification `chart`, jamais de valeurs ; les symboles viennent
   de get_market_snapshot.
 - `list_storylines`, `upsert_storyline`, `add_calendar_events`, `get_learning_progress` (phase 3) : fils
   rouges, agenda et notion du jour à expliquer.
-- Les clés que le schéma refuse aujourd'hui (`stockNotes`, `concept`, `storylineUpdates`) ne
+- Les clés que le schéma refuse aujourd'hui (`concept`, `storylineUpdates`) ne
   doivent être demandées qu'une fois acceptées par le serveur.

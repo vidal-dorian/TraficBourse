@@ -1,6 +1,6 @@
 // Drizzle schema of the app; see CLAUDE.md §6 for the data model.
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS, STOCK_NOTE_REASONS } from "../schemas/brief-enums";
 
 /** The chart spec of a news item as stored (see `ChartSpec` in schemas/brief.ts). */
@@ -89,7 +89,7 @@ export const stockNotes = sqliteTable("stock_notes", {
   summary: text("summary").notNull(),
   newsRefs: text("news_refs", { mode: "json" }).$type<string[]>().notNull(),
   nextEvent: text("next_event"),
-});
+}, (table) => [index("stock_notes_brief_id_idx").on(table.briefId)]);
 
 /** Public OAuth clients registered dynamically (RFC 7591) by the Claude connector. */
 export const oauthClients = sqliteTable("oauth_clients", {

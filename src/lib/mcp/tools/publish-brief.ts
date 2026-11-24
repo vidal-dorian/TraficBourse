@@ -70,22 +70,17 @@ export const publishBriefTool: McpTool<typeof inputSchema> = {
   rawArguments: true,
   handler({ date, kind, payload, dry_run: dryRun }, rawArguments) {
     const db = getDb();
-    const unknown = unknownChartSymbols(db, payload);
-    if (unknown.length > 0) {
-      return {
-        isError: true,
-        content: [
-          { type: "text", text: `Graphique refusé, rien n'a été écrit :\n${unknown.map((line) => `- ${line}`).join("\n")}` },
-        ],
-      };
-    }
-
+    const unknownCharts = unknownChartSymbols(db, payload);
     const unfollowed = unknownWatchlistSymbols(db, payload);
-    if (unfollowed.length > 0) {
+    if (unknownCharts.length > 0 || unfollowed.length > 0) {
+      const section = (title: string, lines: string[]) => (lines.length > 0 ? [`${title}, rien n'a été écrit :`, ...lines.map((line) => `- ${line}`)] : []);
       return {
         isError: true,
         content: [
-          { type: "text", text: `Fiche refusée, rien n'a été écrit :\n${unfollowed.map((line) => `- ${line}`).join("\n")}` },
+          {
+            type: "text",
+            text: [...section("Graphique refusé", unknownCharts), ...section("Fiche refusée", unfollowed)].join("\n"),
+          },
         ],
       };
     }
