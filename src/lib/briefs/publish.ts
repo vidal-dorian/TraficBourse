@@ -59,10 +59,12 @@ export function publishBrief(db: Db, input: PublishBriefInput): PublishBriefResu
         .run();
 
       tx.delete(stockNotes).where(eq(stockNotes.briefId, briefId)).run();
-      if (payload.stockNotes.length > 0) {
+      // Tolerant of a payload that skipped the schema (no defaults applied): no key, no note.
+      const notes = payload.stockNotes ?? [];
+      if (notes.length > 0) {
         tx.insert(stockNotes)
           .values(
-            payload.stockNotes.map((note) => ({
+            notes.map((note) => ({
               briefId,
               symbol: note.symbol,
               reason: note.reason,

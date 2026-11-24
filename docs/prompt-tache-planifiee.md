@@ -51,6 +51,16 @@ Arguments de publish_brief :
       - normalize : true pour comparer plusieurs instruments en base 100, sinon false (valeur par défaut).
       L'app dessine elle-même les courbes avec ses cours ; ne cite pas de chiffre qui n'est pas dans
       get_market_snapshot.
+  - stockNotes (facultatif, liste vide ou clé omise si aucune valeur n'a bougé) : une fiche par action de la
+    watchlist qui a bougé aujourd'hui (variation d'au moins 2 %, résultats publiés ou actualité qui la concerne),
+    chacune avec ces clés, et aucune autre :
+    - symbol : le symbole d'une action de la watchlist de l'app (un symbole hors watchlist fait refuser la
+      publication).
+    - reason : "move", "earnings" ou "news".
+    - summary : ce qui s'est passé pour cette action, 600 caractères au plus, Markdown simple, sans chiffre de
+      cours ni de variation (l'app affiche elle-même la variation du jour).
+    - newsRefs (facultatif) : jusqu'à 5 URLs absolues http ou https de pages que tu as réellement lues.
+    - nextEvent (facultatif) : le prochain événement à surveiller, 200 caractères au plus, en texte brut.
   Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
   Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
   aucune autre clé : elle serait refusée.
@@ -94,7 +104,7 @@ Arguments de publish_brief :
 - dry_run : true puis false.
 - payload : mêmes clés, mêmes limites et mêmes valeurs que pour le brief quotidien (tldr, mood, news de 1 à 5
   actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl et, si utile,
-  chart). Le tldr
+  chart ; stockNotes facultatif, mêmes clés que pour le brief quotidien). Le tldr
   résume la semaine ; mood est l'humeur de la semaine. N'envoie aucune autre clé.
 
 Règles :
