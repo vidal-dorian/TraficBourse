@@ -27,7 +27,7 @@ export interface YahooQuoteSummaryClient {
     symbol: string,
     options: { modules: ("calendarEvents" | "earnings")[] },
   ): Promise<{
-    calendarEvents?: { earnings?: { earningsDate?: Date[] } };
+    calendarEvents?: { earnings?: { earningsDate?: Date[]; isEarningsDateEstimate?: boolean } };
     earnings?: { earningsChart?: { earningsDate?: Date[] } };
   }>;
 }
@@ -77,11 +77,15 @@ export function createYahooProvider(client: YahooChartClient & Partial<YahooQuot
     async getLastEarningsDate(providerSymbol, asOf) {
       if (!client.quoteSummary) return null;
       const summary = await client.quoteSummary(providerSymbol, { modules: ["calendarEvents", "earnings"] });
+      const calendar = summary.calendarEvents?.earnings;
+      // An estimated date is a guessed range, not a publication: only confirmed calendar dates count.
       const instants = [
-        ...(summary.calendarEvents?.earnings?.earningsDate ?? []),
+        ...(calendar?.isEarningsDateEstimate ? [] : (calendar?.earningsDate ?? [])),
         ...(summary.earnings?.earningsChart?.earningsDate ?? []),
       ];
-      // Most recent publication on or before `asOf`; upcoming dates are ignored. ISO dates sort as text.
+      // The latest scheduled or confirmed date on or before `asOf`; upcoming dates are ignored. The 06:30
+      // run on the earnings day therefore records it, and `get_watchlist` flags it the next session.
+      // ISO dates sort as text.
       const days = instants.map((instant) => parisToday(instant)).filter((day) => day <= asOf);
       return days.length > 0 ? days.sort().at(-1)! : null;
     },
