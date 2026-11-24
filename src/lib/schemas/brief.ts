@@ -1,16 +1,16 @@
 // Shared Zod contract of a brief (CLAUDE.md §7): what the Claude scheduled task sends through
 // `publish_brief`. One schema for the MCP tool, server code and (later) forms.
 //
-// Objects are strict: a key the app does not handle yet (stockNotes, concept, storylineUpdates,
-// chart: later tickets) is an error, so Claude learns it in the dry run instead of having it
+// Objects are strict: a key the app does not handle yet (stockNotes, concept, storylineUpdates:
+// later tickets) is an error, so Claude learns it in the dry run instead of having it
 // silently dropped. Text fields are Markdown, stored as received and rendered sanitized.
 //
 // Every leaf is bounded (length, number of items), so one call cannot store megabytes of text in
 // `raw_payload` and `news_items`: the transport's 4 MiB body cap is not a content limit.
 import { z } from "zod";
-import { BRIEF_KINDS, CATEGORIES, MOODS } from "./brief-enums";
+import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS } from "./brief-enums";
 
-export { BRIEF_KINDS, CATEGORIES, MOODS };
+export { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS };
 
 /** A required text: not blank, at most `max` characters. */
 function requiredText(max: number) {
@@ -48,6 +48,22 @@ const Ticker = z
   .string()
   .regex(/^[A-Za-z0-9.^=-]{1,20}$/, "Symbole attendu : 1 à 20 caractères parmi lettres, chiffres et . ^ = -");
 
+/**
+ * A chart under a news item: which instruments, over which range. Claude never sends values, the
+ * app draws the closes of `prices_daily`. Symbols are checked against `instruments` by `publish_brief`.
+ */
+export const ChartSpec = z.strictObject({
+  type: z.literal("price"),
+  symbols: z
+    .array(Ticker)
+    .min(1)
+    .max(3)
+    .refine((symbols) => new Set(symbols).size === symbols.length, "Chaque symbole ne doit apparaître qu'une fois."),
+  range: z.enum(CHART_RANGES),
+  normalize: z.boolean().default(false),
+});
+export type ChartSpec = z.infer<typeof ChartSpec>;
+
 export const NewsItem = z.strictObject({
   title: requiredText(120),
   summary: requiredText(600),
@@ -57,6 +73,7 @@ export const NewsItem = z.strictObject({
   tickers: z.array(Ticker).max(10).default([]),
   sourceName: requiredText(120),
   sourceUrl: SourceUrl,
+  chart: ChartSpec.optional(),
 });
 export type NewsItem = z.infer<typeof NewsItem>;
 

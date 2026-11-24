@@ -11,7 +11,7 @@
 //   - `payload`: tldr (max 400), mood (appetit_risque | aversion_risque | mitige), news (1 to 5
 //     items: title max 120, summary max 600, whyItMatters max 400, impact max 300, category in
 //     the CLAUDE.md enum, tickers string[] defaulting to [], sourceName, sourceUrl). Strict
-//     objects: unknown keys (stockNotes, concept, storylineUpdates, chart, ...) are rejected.
+//     objects: unknown keys (stockNotes, concept, storylineUpdates, ...) are rejected.
 //     Required text fields must not be blank; sourceUrl is an absolute http(s) URL;
 //   - `dry_run`: optional, false when absent.
 //   Its input schema is listed by tools/list, so Claude sees the whole contract.
@@ -125,7 +125,7 @@ describe("C54 — a dry run of a valid payload answers OK and writes nothing", (
     expect(payload.additionalProperties).toBe(false);
     const news = payload.properties?.news as { items?: { properties?: Record<string, unknown>; additionalProperties?: unknown } };
     expect(Object.keys(news.items?.properties ?? {}).sort()).toEqual(
-      ["category", "impact", "sourceName", "sourceUrl", "summary", "tickers", "title", "whyItMatters"].sort(),
+      ["category", "chart", "impact", "sourceName", "sourceUrl", "summary", "tickers", "title", "whyItMatters"].sort(),
     );
     expect(news.items?.additionalProperties).toBe(false);
   });

@@ -50,6 +50,13 @@
       "when": 1795504088435,
       "tag": "0006_fallback_symbol",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795524067223,
+      "tag": "0007_chart_spec",
+      "breakpoints": true
     }
   ]
 }

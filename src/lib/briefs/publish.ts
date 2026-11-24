@@ -53,6 +53,7 @@ export function publishBrief(db: Db, input: PublishBriefInput): PublishBriefResu
             tickers: news.tickers,
             sourceName: news.sourceName,
             sourceUrl: news.sourceUrl,
+            chartSpec: news.chart ?? null,
           })),
         )
         .run();

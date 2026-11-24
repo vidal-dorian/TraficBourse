@@ -216,10 +216,10 @@ export function invalidCases(): InvalidCase[] {
       mentions: "concept",
     },
     {
-      name: "unknown key chart in a news item (later ticket)",
-      payload: withPayload((p) => (firstNews(p).chart = { type: "price", symbols: ["^FCHI"], range: "1M" })),
+      name: "unknown key imageUrl in a news item (never any image)",
+      payload: withPayload((p) => (firstNews(p).imageUrl = "https://exemple.fr/image.png")),
       path: "news.0",
-      mentions: "chart",
+      mentions: "imageUrl",
     },
     { name: "payload not an object", payload: "brief du jour", path: "" },
   ];
