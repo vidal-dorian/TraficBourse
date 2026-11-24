@@ -2,7 +2,7 @@
 
 Small self-hosted web app that shows a daily markets brief (news, market moves, one concept to learn) for a beginner investor in France. Everything a visitor sees is in French. The full scope, architecture and roadmap live in [`CLAUDE.md`](./CLAUDE.md).
 
-Current state: phase 0 foundation — a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, the `get_recent_briefs` tool, which rereads them, and the `get_market_snapshot` tool, which gives the variations of the stored closes; the home page shows the latest published brief, `/archives` lists every published one and `/brief/AAAA-MM-JJ` shows the brief of a date. The procedure to plug the Claude scheduled task into the app is versioned in [`docs/mise-en-service.md`](./docs/mise-en-service.md) (French setup guide), with the prompt in force in [`docs/prompt-tache-planifiee.md`](./docs/prompt-tache-planifiee.md).
+Current state: phase 0 foundation — a `/api/health` route, the SQLite database layer (Drizzle, WAL mode), a provisional `/admin` page reserved to the owner, with a watchlist page where the owner adds and removes stocks, the Docker Compose stack for the Pi ([`DEPLOY.md`](./DEPLOY.md)) and the CI workflow that publishes its image. Phase 1 has started with the authenticated MCP endpoint `/api/mcp` (static token or OAuth login), its `mcp_audit` log and the `publish_brief` tool, which writes the `briefs` and `news_items` tables, the `get_recent_briefs` tool, which rereads them, and the `get_market_snapshot` tool, which gives the variations of the stored closes; the home page shows the latest published brief, `/archives` lists every published one and `/brief/AAAA-MM-JJ` shows the brief of a date. The procedure to plug the Claude scheduled task into the app is versioned in [`docs/mise-en-service.md`](./docs/mise-en-service.md) (French setup guide), with the prompt in force in [`docs/prompt-tache-planifiee.md`](./docs/prompt-tache-planifiee.md).
 
 ## Prerequisites
 
@@ -137,6 +137,8 @@ src/app/layout.tsx            root layout: navigation and educational notice on 
 src/app/api/health/route.ts   health route
 src/app/api/mcp/route.ts      MCP endpoint (bearer token or OAuth, stateless Streamable HTTP)
 src/app/admin/page.tsx        provisional admin page (French, noindex)
+src/app/admin/watchlist/      watchlist admin page (search, add, remove) and its server actions
+src/lib/watchlist/            watchlist domain (add, remove, list) and the Access-checked owner entry points
 src/middleware.ts             Cloudflare Access check on /admin
 src/lib/auth/                 Access token verification (jose)
 src/lib/mcp/server.ts         MCP handler: auth (MCP_TOKEN or OAuth), tool registry, audited tools/call
@@ -184,7 +186,7 @@ docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 
 ## Closing prices
 
-The app fetches the closing prices itself; Claude never supplies a number. The `jobs` container runs the prices job (`src/jobs/prices.ts`) every day at 06:30 Europe/Paris (`30 6 * * *`, `src/jobs/schedule.ts`; it does not run at start-up). The job only knows the `MarketDataProvider` interface (`src/lib/market/provider.ts`); `src/lib/market/yahoo.ts` implements it with `yahoo-finance2` (unofficial, may break, hence the interface). Migration `0004` creates `instruments` and `prices_daily` (primary key `symbol` + `date`), migration `0005` seeds the nine default instruments: CAC 40 `^FCHI`, Euro Stoxx 50 `^STOXX50E`, S&P 500 `^GSPC`, Nasdaq 100 `^NDX`, `IWDA.AS`, EUR/USD `EURUSD=X`, gold `GC=F`, Brent `BZ=F`, Bitcoin `BTC-EUR`. None is in the watchlist yet.
+The app fetches the closing prices itself; Claude never supplies a number. The `jobs` container runs the prices job (`src/jobs/prices.ts`) every day at 06:30 Europe/Paris (`30 6 * * *`, `src/jobs/schedule.ts`; it does not run at start-up). The job only knows the `MarketDataProvider` interface (`src/lib/market/provider.ts`); `src/lib/market/yahoo.ts` implements it with `yahoo-finance2` (unofficial, may break, hence the interface). Migration `0004` creates `instruments` and `prices_daily` (primary key `symbol` + `date`), migration `0005` seeds the nine default instruments: CAC 40 `^FCHI`, Euro Stoxx 50 `^STOXX50E`, S&P 500 `^GSPC`, Nasdaq 100 `^NDX`, `IWDA.AS`, EUR/USD `EURUSD=X`, gold `GC=F`, Brent `BZ=F`, Bitcoin `BTC-EUR`. None is in the watchlist yet: the owner adds stocks from [`/admin/watchlist`](#watchlist-admin).
 
 For each instrument, the first run fetches one year (Paris today minus one year); later runs restart from the last stored date, inclusive, so a revised close is corrected. Rows are upserted on (`symbol`, `date`), so a second run the same day creates no duplicate. A bar dated Paris today is dropped: at 06:30 that day is still trading (24/7 markets, futures, FX) and its close would be a live price stored as final. A bar's `date` is the exchange's local day. A failing symbol is logged (`prices: <symbol> failed: …`) and the others are processed; the run ends with a `prices: N instrument(s) updated, M failed` line. The container needs outbound internet access.
 
@@ -213,6 +215,16 @@ On the home page and on `/brief/[date]`, a `<section aria-label="Marchés">` sit
 The data comes from `getMarketTiles(db, briefDate)` (`src/lib/market/tiles.ts`): only closes dated strictly before the brief date count, i.e. what `get_market_snapshot` gave Claude that morning, so an archived brief shows the closes of its own date. The day variation comes from `computeVariations`; the curve runs from the last close date minus one calendar month (`subtractOneMonth`, exported from `snapshot.ts`) to the last close.
 
 **The Yahoo symbols have not been verified live** (no network in the development sandbox): check them on the Pi after the first run, see [DEPLOY.md](./DEPLOY.md#closing-prices).
+
+## Watchlist admin
+
+`/admin/watchlist` (`src/app/admin/watchlist/page.tsx`, linked from `/admin`, behind the same Access check, US #24) lets the owner add and remove stocks. The search form is a GET on `?q=` (name or symbol, trimmed, capped at 100 characters); only stocks and ETFs are listed (indexes, currencies, crypto and futures are not offered), each with « Ajouter », or « Déjà suivie » when it is already followed. The followed list shows « Retirer ». After an action the page is reloaded with `?status=` and a French message tells the outcome; a search that fails shows « La recherche est indisponible pour le moment, réessayez plus tard. ».
+
+- Search: the page only knows `InstrumentSearchProvider` (`src/lib/market/search.ts`); `src/lib/market/yahoo-search.ts` implements it with `yahoo-finance2` (unofficial, like the prices) and also looks the currency up through Yahoo's `quote`.
+- Add (`src/lib/watchlist/watchlist.ts`): creates the instrument (the Yahoo symbol is both `symbol` and `provider_symbol`; an existing one keeps its data and only gets `in_watchlist`) and stores one year of closes with the rules of the prices job (`src/lib/market/store-bars.ts`: days before Paris today, upsert on `symbol` + `date`). If the history cannot be fetched the stock stays followed and the next prices job fills it, which the page says.
+- Remove: only clears `in_watchlist`; the instrument and its prices stay. A removed stock keeps its tile, its `/marches` row, its `get_market_snapshot` entry and its daily updates, since none of them filters on the watchlist.
+- Security: the server actions (`src/app/admin/watchlist/actions.ts`) call `src/lib/watchlist/owner-actions.ts`, which re-verifies the Cloudflare Access token (same rules as the middleware, fail closed) before any call or write, since a server action can be POSTed to a path the middleware does not cover. On add, the submitted fields are not trusted: the result is re-resolved through the search server-side and the currency comes from Yahoo. Failures (`forbidden`, `invalid`, `not_found`, `search_failed`, `currency_failed`, `write_failed`, `history_failed`) each have their message.
+- Currencies in minor units (`GBp`, `GBX`, `ZAc`, as Yahoo gives them for London or Johannesburg listings) are shown by `formatClose` as the plain number followed by the code, not as a currency amount.
 
 ## CI
 

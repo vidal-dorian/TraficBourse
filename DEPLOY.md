@@ -109,6 +109,10 @@ To connect the Claude connector through OAuth instead of a header (`CLAUDE.md` Â
 
 OAuth rows (clients, codes, tokens) that expired are not purged yet; they stay in the database until a later change removes them.
 
+### Watchlist actions behind Cloudflare
+
+After a deploy, sign in to `/admin/watchlist` through Cloudflare Access and add then remove a stock. Next.js server actions compare the `Origin` header with the forwarded host (`X-Forwarded-Host`, else `Host`) and refuse the request when they differ: if Caddy or the tunnel rewrites the `Host` header without forwarding the original one, the add and remove buttons fail while the page still loads. Keep the public host name in `Host` or `X-Forwarded-Host`. The actions also re-check the Access token themselves, so `ADMIN_EMAILS` and `CF_ACCESS_AUD` must be set on the `web` container, as for the middleware.
+
 ### Cloudflare and Caddy for OAuth
 
 - **Access bypass**: Claude cannot pass Access. Create a separate self-hosted Access application on the same host name, whose destinations are exactly `/api/mcp`, `/oauth/authorize`, `/oauth/register`, `/oauth/token`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp` (no `*`), with one Bypass policy (Include: Everyone). Never add a Bypass to the application covering `/admin` or the whole host: Cloudflare applies the most specific path, so that one keeps its Allow policy. Check that `/admin` still shows the Cloudflare login page. Steps in [docs/mise-en-service.md](./docs/mise-en-service.md).

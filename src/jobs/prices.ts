@@ -1,10 +1,11 @@
 // Prices job (CLAUDE.md §2): fetches the closing prices of every instrument through a
 // MarketDataProvider and stores them in prices_daily. The app owns all the numbers.
-import { eq, max, sql } from "drizzle-orm";
+import { eq, max } from "drizzle-orm";
 import { parisToday } from "../lib/dates/paris";
 import type { Db } from "../lib/db/client";
 import { instruments, pricesDaily } from "../lib/db/schema";
 import type { DailyBar, MarketDataProvider } from "../lib/market/provider";
+import { storeFinishedBars } from "../lib/market/store-bars";
 
 export interface JobLogger {
   info(message: string): void;
@@ -79,22 +80,8 @@ export async function runPricesJob({
         }
         source = fallback.name;
       }
-      // A bar dated Paris today is a day still trading (24/7 markets, futures, FX at 06:30):
-      // its "close" is a live price that would be stored as final. Only finished days are kept.
-      const bars = fetched.filter((bar) => bar.date < today);
-      db.transaction((tx) => {
-        for (const bar of bars) {
-          const row = { symbol: instrument.symbol, ...bar };
-          tx.insert(pricesDaily)
-            .values(row)
-            .onConflictDoUpdate({
-              target: [pricesDaily.symbol, pricesDaily.date],
-              set: { open: sql`excluded.open`, high: sql`excluded.high`, low: sql`excluded.low`, close: sql`excluded.close`, volume: sql`excluded.volume` },
-            })
-            .run();
-        }
-      });
-      result.updated.push({ symbol: instrument.symbol, bars: bars.length, source });
+      const stored = storeFinishedBars(db, instrument.symbol, fetched, today);
+      result.updated.push({ symbol: instrument.symbol, bars: stored, source });
     } catch (error) {
       const message = errorMessage(error);
       result.failed.push({ symbol: instrument.symbol, error: message });
