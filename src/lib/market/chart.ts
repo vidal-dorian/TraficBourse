@@ -24,8 +24,7 @@ export interface ChartData {
 function windowStart(range: StoredChartSpec["range"], endDate: string): string {
   switch (range) {
     case "5D":
-      // The window holds 6 calendar days (end - 5 .. end): the acceptance tests exclude end - 6.
-      return subtractDays(endDate, 6);
+      return subtractDays(endDate, 7);
     case "1M":
       return subtractMonths(endDate, 1);
     case "3M":
