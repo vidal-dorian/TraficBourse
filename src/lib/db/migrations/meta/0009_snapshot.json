@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c92d8d13-faa3-4f83-a8d4-f03dad8245ef",
-  "prevId": "4fa856ed-3598-4fd7-bdc2-a451d6d4cd22",
+  "id": "320a7bd0-bd50-46d4-b75d-aee99787cdb4",
+  "prevId": "169a6bbc-d0a9-46e4-a78b-29b6069305d4",
   "tables": {
     "app_meta": {
       "name": "app_meta",
@@ -167,6 +167,13 @@
         },
         "fallback_symbol": {
           "name": "fallback_symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_earnings_date": {
+          "name": "last_earnings_date",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

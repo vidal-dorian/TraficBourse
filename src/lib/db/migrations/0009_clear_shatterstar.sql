@@ -1,1 +1,0 @@
-CREATE INDEX `stock_notes_brief_id_idx` ON `stock_notes` (`brief_id`);

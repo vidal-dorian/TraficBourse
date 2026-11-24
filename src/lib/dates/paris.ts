@@ -20,10 +20,34 @@ export function parisToday(now: Date = new Date()): string {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+const parisClockFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: PARIS_TIME_ZONE,
+  weekday: "short",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** The weekday (0 = Sunday ... 6 = Saturday) and the hour (0-23) in Paris at `now`. */
+export function parisWeekdayAndHour(now: Date): { weekday: number; hour: number } {
+  const parts = Object.fromEntries(parisClockFormat.formatToParts(now).map((part) => [part.type, part.value]));
+  return { weekday: WEEKDAYS.indexOf(parts.weekday), hour: Number(parts.hour) };
+}
+
 /** `date` ("YYYY-MM-DD") minus `days` calendar days (a negative `days` goes forward). */
 export function subtractDays(date: string, days: number): string {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
+}
+
+/** The weekday (Monday to Friday) before `date`: Monday gives the Friday before, Saturday and Sunday give Friday. */
+export function previousWeekday(date: string): string {
+  // Day of the week of a calendar date, read at UTC midnight (0 = Sunday).
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  if (weekday === 0) return subtractDays(date, 2);
+  if (weekday === 1) return subtractDays(date, 3);
+  return subtractDays(date, 1);
 }
 
 /** `date` minus `months` calendar months, the day clamped to the end of the shorter month (31 March - 1 month = 28 February). */

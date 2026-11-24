@@ -8,3 +8,5 @@ CREATE TABLE `stock_notes` (
 	`next_event` text,
 	FOREIGN KEY (`brief_id`) REFERENCES `briefs`(`id`) ON UPDATE no action ON DELETE cascade
 );
+--> statement-breakpoint
+CREATE INDEX `stock_notes_brief_id_idx` ON `stock_notes` (`brief_id`);

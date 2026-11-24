@@ -154,6 +154,8 @@ export const instruments = sqliteTable("instruments", {
   currency: text("currency").notNull(),
   inWatchlist: integer("in_watchlist", { mode: "boolean" }).notNull().default(false),
   fallbackSymbol: text("fallback_symbol"),
+  // Most recent results publication date (US #25), filled by the prices job for watchlist stocks.
+  lastEarningsDate: text("last_earnings_date"),
 });
 
 /**

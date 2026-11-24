@@ -61,15 +61,15 @@
     {
       "idx": 8,
       "version": "6",
-      "when": 1795534755120,
-      "tag": "0008_tense_maggott",
+      "when": 1795532725649,
+      "tag": "0008_last_earnings_date",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "6",
-      "when": 1795535090663,
-      "tag": "0009_clear_shatterstar",
+      "when": 1795551639974,
+      "tag": "0009_stock_notes",
       "breakpoints": true
     }
   ]
