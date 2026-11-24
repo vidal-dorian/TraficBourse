@@ -51,8 +51,8 @@ Dorian /admin ──Cloudflare Access───┤
                                      ▼
           ┌──────────────── Docker Compose ────────────────┐
           │  web   : Next.js (pages + /api/mcp + /admin)   │
-          │  jobs  : node-cron (prices, backup; phase 4: │
-          │          check, backup) — same image           │
+          │  jobs  : node-cron (prices, backup; phase 4:   │
+          │          missing-brief notify) — same image    │
           │  volume: /mnt/data/bourse → SQLite (WAL)       │
           └────────────────────────────────────────────────┘
                  jobs → market-data API (Yahoo / Twelve Data)
