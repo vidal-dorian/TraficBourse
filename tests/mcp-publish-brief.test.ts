@@ -121,13 +121,16 @@ describe("C54 — a dry run of a valid payload answers OK and writes nothing", (
     expect(Object.keys(schema.properties).sort()).toEqual(["date", "dry_run", "kind", "payload"]);
     expect([...(schema.required ?? [])].sort()).toEqual(["date", "kind", "payload"]);
     const payload = schema.properties.payload;
-    expect(Object.keys(payload.properties ?? {}).sort()).toEqual(["mood", "news", "tldr"]);
+    expect(Object.keys(payload.properties ?? {}).sort()).toEqual(["mood", "news", "stockNotes", "tldr"]);
     expect(payload.additionalProperties).toBe(false);
     const news = payload.properties?.news as { items?: { properties?: Record<string, unknown>; additionalProperties?: unknown } };
     expect(Object.keys(news.items?.properties ?? {}).sort()).toEqual(
       ["category", "chart", "impact", "sourceName", "sourceUrl", "summary", "tickers", "title", "whyItMatters"].sort(),
     );
     expect(news.items?.additionalProperties).toBe(false);
+    const notes = payload.properties?.stockNotes as { items?: { properties?: Record<string, unknown>; additionalProperties?: unknown } };
+    expect(Object.keys(notes.items?.properties ?? {}).sort()).toEqual(["newsRefs", "nextEvent", "reason", "summary", "symbol"]);
+    expect(notes.items?.additionalProperties).toBe(false);
   });
 
   it("C54 — given a valid payload and dry_run = true, when I call publish_brief, then it answers OK and no brief nor news item is written", async () => {
