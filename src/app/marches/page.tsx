@@ -59,7 +59,7 @@ export default async function MarketsPage({ searchParams }: { searchParams: Prom
     <main className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-2xl font-semibold">Marchés</h1>
       <p className="mt-2 text-sm text-neutral-500">
-        Dernier cours de clôture connu ; la date est indiquée quand il n&apos;est pas celui de la dernière séance.
+        Dernier cours de clôture connu, avec ses variations ; la date est indiquée quand il n&apos;est pas celui de la dernière séance. Choisissez un instrument pour voir son graphique.
       </p>
       <ul className="mt-6 divide-y divide-neutral-200">
         {entries.map((entry) => (
