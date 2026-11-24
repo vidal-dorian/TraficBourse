@@ -161,8 +161,8 @@ describe("C86 — the window follows the snapshot's reference rule", () => {
 
   it("given 3M ending 2026-11-23, when computed, then the base is the close of 2026-08-23", async () => {
     const { computeChartSeries } = await chartModule();
-    const result = computeChartSeries(spec({ range: "3M" }), { "^FCHI": [c("2026-08-22", 1), c("2026-08-23", 2), c("2026-08-24", 3)] }, "2026-11-23");
-    expect(dates(result.series[0])).toEqual(["2026-08-23", "2026-08-24"]);
+    const result = computeChartSeries(spec({ range: "3M" }), { "^FCHI": [c("2026-08-22", 1), c("2026-08-23", 2), c("2026-08-24", 3), c("2026-11-23", 9)] }, "2026-11-23");
+    expect(dates(result.series[0])).toEqual(["2026-08-23", "2026-08-24", "2026-11-23"]);
   });
 
   it("given YTD ending 2026-11-23, when computed, then the base is the close of 2025-12-31", async () => {
@@ -173,14 +173,14 @@ describe("C86 — the window follows the snapshot's reference rule", () => {
 
   it("given 1Y ending 2026-11-23, when computed, then the base is the close of 2025-11-23", async () => {
     const { computeChartSeries } = await chartModule();
-    const result = computeChartSeries(spec({ range: "1Y" }), { "^FCHI": [c("2025-11-22", 1), c("2025-11-23", 2), c("2025-11-24", 3)] }, "2026-11-23");
-    expect(dates(result.series[0])).toEqual(["2025-11-23", "2025-11-24"]);
+    const result = computeChartSeries(spec({ range: "1Y" }), { "^FCHI": [c("2025-11-22", 1), c("2025-11-23", 2), c("2025-11-24", 3), c("2026-11-23", 9)] }, "2026-11-23");
+    expect(dates(result.series[0])).toEqual(["2025-11-23", "2025-11-24", "2026-11-23"]);
   });
 
   it("given 1Y ending on 2028-02-29, when computed, then the reference day is clamped to 2027-02-28", async () => {
     const { computeChartSeries } = await chartModule();
-    const result = computeChartSeries(spec({ range: "1Y" }), { "^FCHI": [c("2027-02-27", 1), c("2027-02-28", 2), c("2027-03-01", 3)] }, "2028-02-29");
-    expect(dates(result.series[0])).toEqual(["2027-02-28", "2027-03-01"]);
+    const result = computeChartSeries(spec({ range: "1Y" }), { "^FCHI": [c("2027-02-27", 1), c("2027-02-28", 2), c("2027-03-01", 3), c("2028-02-29", 9)] }, "2028-02-29");
+    expect(dates(result.series[0])).toEqual(["2027-02-28", "2027-03-01", "2028-02-29"]);
   });
 
   it("given a symbol with no close on or before the brief date, when computed, then its series is empty and the others are kept", async () => {
