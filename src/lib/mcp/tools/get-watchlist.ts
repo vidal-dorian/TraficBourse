@@ -74,8 +74,8 @@ export const getWatchlistTool: McpTool<typeof inputSchema> = {
     "Actions et ETF suivis dans la watchlist : pour chacun, la dernière clôture au plus tard à la date demandée " +
     "et les variations en % sur 1 jour et 1 semaine, calculées par l'app. `moved` vaut true quand la variation du " +
     "jour atteint le seuil `threshold` (en %, valeur absolue) ou que des résultats ont été publiés depuis la " +
-    "séance précédente ; `reasons` donne `move` et/ou `earnings`. N'écrire une fiche que pour les valeurs qui ont bougé. " +
-    "Si `lastEarningsDate` est vide, repérer les résultats par recherche web (raison `news`).",
+    "séance précédente ; `reasons` donne `move` et/ou `earnings`. Si `lastEarningsDate` est vide, l'app ne connaît " +
+    "pas la date des résultats : la vérifier par recherche web.",
   inputSchema,
   annotations: { readOnlyHint: true },
   handler({ date: asked }) {

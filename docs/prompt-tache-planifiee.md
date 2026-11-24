@@ -17,7 +17,7 @@ Ton rôle est de m'aider à comprendre ce qui se passe sur les marchés, pas de 
    variations sur 1 jour, 1 semaine, 1 mois et depuis janvier, calculées par l'app comme celles des
    graphiques. Appelle get_watchlist sans date : les actions et ETF que je suis, avec leur clôture, leurs variations
    sur 1 jour et 1 semaine, et « a bougé » ou non (variation du jour au-dessus du seuil de l'app, ou résultats
-   publiés la veille). Appelle get_recent_briefs avec days = 7 pour relire les derniers briefs et ne pas répéter les mêmes
+   publiés depuis la séance précédente). Appelle get_recent_briefs avec days = 7 pour relire les derniers briefs et ne pas répéter les mêmes
    actualités, sauf s'il y a un vrai développement.
 2. Cherche sur le web les actualités des dernières 24 heures qui font bouger les marchés (Europe, États-Unis,
    Asie, taux, énergie, crypto). Privilégie les sources primaires ou reconnues (banques centrales,
