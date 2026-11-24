@@ -36,8 +36,15 @@ describe("C70 — docs/prompt-tache-planifiee.md", () => {
 
   it("C70 — given the prompt, when I read the payload it asks for, then it does not request fields the schema rejects today", () => {
     const prompt = codeBlocks(doc()).join("\n");
-    expect(prompt).not.toMatch(/stockNotes|stock_notes|concept\b|storylineUpdates/i);
+    expect(prompt).not.toMatch(/concept\b|storylineUpdates/i);
     expect(prompt).toMatch(/dry_run/);
+  });
+
+  it("#97 — given the prompt, when I read the payload it asks for, then it describes the stockNotes the schema now accepts", () => {
+    const prompt = codeBlocks(doc()).join("\n");
+    expect(prompt).toMatch(/stockNotes/);
+    expect(prompt).toMatch(/newsRefs/);
+    expect(prompt).toMatch(/nextEvent/);
   });
 
   it("C70 — given the prompt, when I read the kinds, then the daily and the weekly (Saturday) variants are stated", () => {

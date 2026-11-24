@@ -1,7 +1,7 @@
 // Drizzle schema of the app; see CLAUDE.md §6 for the data model.
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
-import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS } from "../schemas/brief-enums";
+import { index, integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS, STOCK_NOTE_REASONS } from "../schemas/brief-enums";
 
 /** The chart spec of a news item as stored (see `ChartSpec` in schemas/brief.ts). */
 export type StoredChartSpec = { type: "price"; symbols: string[]; range: (typeof CHART_RANGES)[number]; normalize: boolean };
@@ -77,6 +77,19 @@ export const newsItems = sqliteTable(
   },
   (table) => [unique("news_items_brief_rank_unique").on(table.briefId, table.rank)],
 );
+
+/** Notes on watchlist stocks of a brief (« Ma watchlist »), in payload order (`id` order). */
+export const stockNotes = sqliteTable("stock_notes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  briefId: integer("brief_id")
+    .notNull()
+    .references(() => briefs.id, { onDelete: "cascade" }),
+  symbol: text("symbol").notNull(),
+  reason: text("reason", { enum: STOCK_NOTE_REASONS }).notNull(),
+  summary: text("summary").notNull(),
+  newsRefs: text("news_refs", { mode: "json" }).$type<string[]>().notNull(),
+  nextEvent: text("next_event"),
+}, (table) => [index("stock_notes_brief_id_idx").on(table.briefId)]);
 
 /** Public OAuth clients registered dynamically (RFC 7591) by the Claude connector. */
 export const oauthClients = sqliteTable("oauth_clients", {

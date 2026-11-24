@@ -204,10 +204,10 @@ export function invalidCases(): InvalidCase[] {
       path: "news.0.tickers",
     },
     {
-      name: "unknown key stockNotes in the payload (later ticket)",
-      payload: withPayload((p) => (p.stockNotes = [])),
+      name: "unknown key storylineUpdates in the payload (later ticket)",
+      payload: withPayload((p) => (p.storylineUpdates = [])),
       path: "",
-      mentions: "stockNotes",
+      mentions: "storylineUpdates",
     },
     {
       name: "unknown key concept in the payload (later ticket)",

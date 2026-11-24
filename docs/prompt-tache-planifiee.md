@@ -5,7 +5,7 @@ source de vérité : on la copie telle quelle dans la tâche (voir [mise-en-serv
 Le prompt cible, avec tous les outils prévus, reste en annexe A du `CLAUDE.md`.
 
 Il ne demande que ce que l'app accepte aujourd'hui (dont, depuis l'US #22, un graphique facultatif par actualité) : quatre outils, `get_market_snapshot`, `get_watchlist` (US #25) et `get_recent_briefs`
-(lecture) et `publish_brief` (écriture). Les notes par valeur ne sont pas encore acceptées : `get_watchlist` sert à repérer les valeurs suivies qui ont bougé, qu'on ne mentionne dans le brief que si elles aident à comprendre une actualité. Tout autre champ ou outil serait refusé ou n'existerait pas.
+(lecture) et `publish_brief` (écriture). `get_watchlist` sert à repérer les valeurs suivies qui ont bougé, et `publish_brief` accepte une fiche par valeur de la watchlist (`stockNotes`, US #26). Tout autre champ ou outil serait refusé ou n'existerait pas.
 
 ## Brief de la semaine (lundi au vendredi, `kind` = `daily`)
 
@@ -24,9 +24,9 @@ Ton rôle est de m'aider à comprendre ce qui se passe sur les marchés, pas de 
    communiqués d'entreprises, Reuters, Les Echos, Bloomberg, Zonebourse, AMF).
    Pour une valeur de la watchlist qui a bougé, cherche aussi sur le web la raison du mouvement ; si la date de
    ses derniers résultats n'est pas renseignée, vérifie par recherche si elle vient de publier des résultats.
-3. Choisis de 1 à 5 actualités (3 à 5 de préférence). Une valeur de la watchlist qui a bougé n'a pas de fiche
-   à part : mentionne-la dans une actualité ou dans le tldr seulement si cela aide à comprendre l'actualité, sinon
-   ne la mentionne pas.
+3. Choisis de 1 à 5 actualités (3 à 5 de préférence). Pour chaque valeur de la watchlist qui a bougé (« a bougé »
+   dans get_watchlist, ou une actualité qui la concerne), écris une fiche dans stockNotes ; ne fais pas de fiche
+   pour les autres.
 4. Écris tout en français, simple et amical.
 5. Appelle publish_brief avec dry_run = true. Corrige toutes les erreurs de validation renvoyées (elles
    arrivent ensemble, une ligne « chemin : message » par champ), puis rappelle publish_brief avec
@@ -57,7 +57,20 @@ Arguments de publish_brief :
       - normalize : true pour comparer plusieurs instruments en base 100, sinon false (valeur par défaut).
       L'app dessine elle-même les courbes avec ses cours ; ne cite pas de chiffre qui n'est pas dans
       get_market_snapshot.
-  Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
+  - stockNotes (facultatif, liste vide ou clé omise si aucune valeur n'a bougé) : une fiche par action suivie
+    qui a bougé aujourd'hui (« a bougé » dans get_watchlist, ou une actualité qui la concerne). Chaque fiche a
+    ces clés, et aucune autre :
+    - symbol : le symbole d'une valeur renvoyée par get_watchlist. Si le dry run refuse une ligne
+      « payload.stockNotes.N.symbol », supprime cette fiche au lieu de changer le symbole, puis relance le dry run.
+    - reason : "move" quand get_watchlist donne un mouvement, "earnings" quand il donne des résultats publiés,
+      sinon "news" (y compris pour des résultats que tu as trouvés toi-même par recherche).
+    - summary : ce qui s'est passé pour cette action, 600 caractères au plus, Markdown simple, sans chiffre de
+      cours ni de variation (l'app affiche elle-même la variation du jour).
+    - newsRefs (facultatif, omets la clé si aucune) : jusqu'à 5 URLs absolues http ou https de pages que tu as
+      réellement lues.
+    - nextEvent (facultatif, omets la clé si aucun) : le prochain événement à surveiller, 200 caractères au plus,
+      en texte brut, jamais vide.
+  Tous les textes envoyés sont non vides et sans HTML. tldr, summary, whyItMatters et impact acceptent un
   Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
   aucune autre clé : elle serait refusée.
 
@@ -90,8 +103,8 @@ débutant en France. Ton rôle est de m'aider à comprendre la semaine écoulée
 2. Complète si besoin par une recherche web sur les développements de la semaine (sources primaires ou
    reconnues).
 3. Choisis les 5 faits marquants de la semaine : 5 actualités, ni plus ni moins. Relie-les entre elles
-   quand elles forment une histoire. Les valeurs de la watchlist n'ont pas de fiche à part : mentionne-en une
-   seulement si elle éclaire un fait marquant.
+   quand elles forment une histoire. Pour les valeurs de get_watchlist dont la semaine mérite d'être racontée,
+   écris une fiche dans stockNotes.
 4. Écris tout en français, simple et amical.
 5. Appelle publish_brief avec dry_run = true. Corrige toutes les erreurs de validation renvoyées, puis
    rappelle publish_brief avec dry_run = false.
@@ -102,7 +115,8 @@ Arguments de publish_brief :
 - dry_run : true puis false.
 - payload : mêmes clés, mêmes limites et mêmes valeurs que pour le brief quotidien (tldr, mood, news de 1 à 5
   actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl et, si utile,
-  chart). Le tldr
+  chart) et, si utile, stockNotes : mêmes clés que pour le brief quotidien (symbol, summary, newsRefs, nextEvent),
+  avec reason : "weekly" pour chaque fiche, et la même conduite en cas de refus d'un symbole. Le tldr
   résume la semaine ; mood est l'humeur de la semaine. N'envoie aucune autre clé.
 
 Règles :
@@ -129,12 +143,12 @@ claude.ai, et garder l'annexe A du `CLAUDE.md` alignée :
   avec les cours de l'app.
 - `get_watchlist` (fait, US #25) : le prompt l'appelle pour repérer les valeurs suivies qui ont bougé ; les chiffres
   cités restent ceux de l'app. Sans date de résultats connue, Claude les cherche lui-même.
-- Les notes par valeur (`stock_notes`, pas encore construites) : le brief quotidien aura des notes pour les valeurs qui ont
-  bougé (raison `news` quand Claude trouve lui-même les résultats), le récapitulatif du samedi pour **toutes** les
-  valeurs de la watchlist (règle serveur). D'ici là, le prompt ne les demande pas.
+- Notes par valeur (faites, US #26) : `stockNotes` est accepté, les symboles doivent être dans la watchlist ; le brief
+  quotidien a des notes pour les valeurs qui ont bougé (raison `news` quand Claude trouve lui-même les résultats).
+  Reste à venir : la règle serveur qui exige, le samedi, une note pour **toutes** les valeurs de la watchlist.
 - Graphiques d'une actualité (fait, US #22) : une spécification `chart`, jamais de valeurs ; les symboles viennent
   de get_market_snapshot.
 - `list_storylines`, `upsert_storyline`, `add_calendar_events`, `get_learning_progress` (phase 3) : fils
   rouges, agenda et notion du jour à expliquer.
-- Les clés que le schéma refuse aujourd'hui (`stockNotes`, `concept`, `storylineUpdates`) ne
+- Les clés que le schéma refuse aujourd'hui (`concept`, `storylineUpdates`) ne
   doivent être demandées qu'une fois acceptées par le serveur.

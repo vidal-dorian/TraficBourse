@@ -150,3 +150,38 @@ export async function seedBriefs(path: string, seeds: SeedBrief[]): Promise<void
     sqlite.close();
   }
 }
+
+export type StockNoteRow = {
+  id: number;
+  brief_id: number;
+  symbol: string;
+  reason: string;
+  summary: string;
+  news_refs: string;
+  next_event: string | null;
+};
+
+/** Every stock note (US #26), grouped by brief, in insertion order. */
+export function readStockNotes(path: string): StockNoteRow[] {
+  return withDatabase(path, (db) => db.prepare("SELECT * FROM stock_notes ORDER BY brief_id, id").all() as StockNoteRow[]);
+}
+
+/**
+ * Adds stocks to `instruments` and puts them in the watchlist (`in_watchlist` 1), or not when
+ * `inWatchlist` is false. Call before the app opens the database.
+ */
+export async function seedStocks(
+  path: string,
+  stocks: { symbol: string; name: string; inWatchlist?: boolean; currency?: string }[],
+): Promise<void> {
+  const { openDatabase } = await import("../../src/lib/db/client");
+  const sqlite = openDatabase(path);
+  try {
+    const insert = sqlite.prepare(
+      "INSERT INTO instruments (symbol, provider_symbol, name, type, exchange, currency, in_watchlist) VALUES (?, ?, ?, 'stock', 'Paris', ?, ?)",
+    );
+    for (const stock of stocks) insert.run(stock.symbol, stock.symbol, stock.name, stock.currency ?? "EUR", (stock.inWatchlist ?? true) ? 1 : 0);
+  } finally {
+    sqlite.close();
+  }
+}

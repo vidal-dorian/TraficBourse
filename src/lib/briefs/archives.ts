@@ -1,7 +1,7 @@
 // Past briefs (US #16): the list of the archives page and the briefs of a given date. Same rule as
 // the home page: `published` briefs dated up to today in Paris, drafts and future dates left out.
 import { and, desc, eq, lte } from "drizzle-orm";
-import { briefColumns, newsOf, weeklyFirst, type BriefWithNews } from "@/lib/briefs/latest";
+import { briefColumns, newsOf, stockNotesOf, weeklyFirst, type BriefWithNews } from "@/lib/briefs/latest";
 import type { Db } from "@/lib/db/client";
 import { briefs } from "@/lib/db/schema";
 
@@ -31,5 +31,5 @@ export function getBriefsOfDate(db: Db, date: string, today: string): BriefWithN
     .where(and(eq(briefs.status, "published"), eq(briefs.date, date), lte(briefs.date, today)))
     .orderBy(weeklyFirst)
     .all()
-    .map(({ id, ...brief }) => ({ ...brief, news: newsOf(db, id, brief.date) }));
+    .map(({ id, ...brief }) => ({ ...brief, news: newsOf(db, id, brief.date), stockNotes: stockNotesOf(db, id, brief.date) }));
 }

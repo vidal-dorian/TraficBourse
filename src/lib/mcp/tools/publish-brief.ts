@@ -1,7 +1,7 @@
 // `publish_brief(date, kind, payload, dry_run?)` (CLAUDE.md §7): the write tool of the Claude
 // scheduled task. Arguments are validated by the server against `inputSchema` (all issues at
 // once, one "path : message" line each) before the handler runs; the handler only writes.
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { publishBrief } from "@/lib/briefs/publish";
 import { getDb, type Db } from "@/lib/db/client";
@@ -40,6 +40,26 @@ function unknownChartSymbols(db: Db, payload: BriefPayload): string[] {
   );
 }
 
+/**
+ * One line per stock note whose symbol is not a followed stock (unknown, or not in the watchlist),
+ * naming the symbol. One query for the whole payload.
+ */
+function unknownWatchlistSymbols(db: Db, payload: BriefPayload): string[] {
+  const wanted = [...new Set(payload.stockNotes.map((note) => note.symbol))];
+  if (wanted.length === 0) return [];
+  const followed = new Set(
+    db
+      .select({ symbol: instruments.symbol })
+      .from(instruments)
+      .where(and(inArray(instruments.symbol, wanted), eq(instruments.inWatchlist, true)))
+      .all()
+      .map((row) => row.symbol),
+  );
+  return payload.stockNotes.flatMap((note, index) =>
+    followed.has(note.symbol) ? [] : [`payload.stockNotes.${index}.symbol : « ${note.symbol} » n'est pas dans la watchlist de l'application.`],
+  );
+}
+
 export const publishBriefTool: McpTool<typeof inputSchema> = {
   name: "publish_brief",
   description:
@@ -50,12 +70,17 @@ export const publishBriefTool: McpTool<typeof inputSchema> = {
   rawArguments: true,
   handler({ date, kind, payload, dry_run: dryRun }, rawArguments) {
     const db = getDb();
-    const unknown = unknownChartSymbols(db, payload);
-    if (unknown.length > 0) {
+    const unknownCharts = unknownChartSymbols(db, payload);
+    const unfollowed = unknownWatchlistSymbols(db, payload);
+    if (unknownCharts.length > 0 || unfollowed.length > 0) {
+      const section = (title: string, lines: string[]) => (lines.length > 0 ? [`${title}, rien n'a été écrit :`, ...lines.map((line) => `- ${line}`)] : []);
       return {
         isError: true,
         content: [
-          { type: "text", text: `Graphique refusé, rien n'a été écrit :\n${unknown.map((line) => `- ${line}`).join("\n")}` },
+          {
+            type: "text",
+            text: [...section("Graphique refusé", unknownCharts), ...section("Fiche refusée", unfollowed)].join("\n"),
+          },
         ],
       };
     }
