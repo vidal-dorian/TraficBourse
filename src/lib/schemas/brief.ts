@@ -1,16 +1,16 @@
 // Shared Zod contract of a brief (CLAUDE.md §7): what the Claude scheduled task sends through
 // `publish_brief`. One schema for the MCP tool, server code and (later) forms.
 //
-// Objects are strict: a key the app does not handle yet (stockNotes, concept, storylineUpdates:
-// later tickets) is an error, so Claude learns it in the dry run instead of having it
+// Objects are strict: a key the app does not handle yet (concept, storylineUpdates: later
+// tickets) is an error, so Claude learns it in the dry run instead of having it
 // silently dropped. Text fields are Markdown, stored as received and rendered sanitized.
 //
 // Every leaf is bounded (length, number of items), so one call cannot store megabytes of text in
 // `raw_payload` and `news_items`: the transport's 4 MiB body cap is not a content limit.
 import { z } from "zod";
-import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS } from "./brief-enums";
+import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS, STOCK_NOTE_REASONS } from "./brief-enums";
 
-export { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS };
+export { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS, STOCK_NOTE_REASONS };
 
 /** A required text: not blank, at most `max` characters. */
 function requiredText(max: number) {
@@ -77,9 +77,26 @@ export const NewsItem = z.strictObject({
 });
 export type NewsItem = z.infer<typeof NewsItem>;
 
+export const StockNoteReason = z.enum(STOCK_NOTE_REASONS);
+export type StockNoteReason = z.infer<typeof StockNoteReason>;
+
+/**
+ * A note on a watchlist stock (« Ma watchlist »). The symbol is checked against the watchlist
+ * (`instruments.in_watchlist`) by `publish_brief`; the numbers shown with the note are the app's.
+ */
+export const StockNote = z.strictObject({
+  symbol: Ticker,
+  reason: StockNoteReason,
+  summary: requiredText(600),
+  newsRefs: z.array(SourceUrl).max(5).default([]),
+  nextEvent: requiredText(200).optional(),
+});
+export type StockNote = z.infer<typeof StockNote>;
+
 export const BriefPayload = z.strictObject({
   tldr: requiredText(400),
   mood: Mood,
   news: z.array(NewsItem).min(1).max(5),
+  stockNotes: z.array(StockNote).max(50).default([]),
 });
 export type BriefPayload = z.infer<typeof BriefPayload>;

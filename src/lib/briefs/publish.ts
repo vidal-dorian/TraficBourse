@@ -3,7 +3,7 @@
 // state.
 import { eq } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
-import { briefs, newsItems } from "@/lib/db/schema";
+import { briefs, newsItems, stockNotes } from "@/lib/db/schema";
 import type { BriefKind, BriefPayload } from "@/lib/schemas/brief";
 
 export type PublishBriefInput = {
@@ -57,6 +57,22 @@ export function publishBrief(db: Db, input: PublishBriefInput): PublishBriefResu
           })),
         )
         .run();
+
+      tx.delete(stockNotes).where(eq(stockNotes.briefId, briefId)).run();
+      if (payload.stockNotes.length > 0) {
+        tx.insert(stockNotes)
+          .values(
+            payload.stockNotes.map((note) => ({
+              briefId,
+              symbol: note.symbol,
+              reason: note.reason,
+              summary: note.summary,
+              newsRefs: note.newsRefs,
+              nextEvent: note.nextEvent ?? null,
+            })),
+          )
+          .run();
+      }
 
       return { briefId, newsCount: payload.news.length };
     },
