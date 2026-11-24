@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 import { getDb } from "@/lib/db/client";
+import { formatClose } from "@/lib/market/format";
 import { getLatestCloses } from "@/lib/market/latest";
 
 // Read at each request: a new close shows up without a rebuild.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Marchés — Veille boursière" };
-
-const closeFormat = (currency: string) =>
-  new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 2 });
 
 /** "au 18/11" for a close dated "2026-11-18". */
 function sinceMention(date: string): string {
@@ -33,7 +31,7 @@ export default function MarketsPage() {
               <span className="text-neutral-500">Pas encore de cours</span>
             ) : (
               <span className="text-right">
-                {closeFormat(entry.currency).format(entry.close)}
+                {formatClose(entry.close, entry.type, entry.currency)}
                 {entry.stale ? <span className="ml-2 text-sm text-neutral-500">{sinceMention(entry.date)}</span> : null}
               </span>
             )}

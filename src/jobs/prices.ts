@@ -102,8 +102,10 @@ export async function runPricesJob({
     }
   }
 
+  const perSource = Map.groupBy(result.updated, (entry) => entry.source);
+  const sources = [...perSource].map(([name, entries]) => `${name}: ${entries.length}`).join(", ");
   logger.info(
-    `prices: ${result.updated.length} instrument(s) updated, ${result.failed.length} failed (${provider.name})`,
+    `prices: ${result.updated.length} instrument(s) updated${sources ? ` (${sources})` : ""}, ${result.failed.length} failed`,
   );
   return result;
 }
