@@ -6,6 +6,7 @@ import { z } from "zod";
 import { parisToday } from "@/lib/dates/paris";
 import { getDb } from "@/lib/db/client";
 import { instruments, pricesDaily } from "@/lib/db/schema";
+import { formatClose } from "@/lib/market/format";
 import { isStale } from "@/lib/market/latest";
 import { computeVariations, type DatedClose, type Variations } from "@/lib/market/snapshot";
 import type { McpTool } from "../server";
@@ -50,7 +51,7 @@ function describeEntry(entry: SnapshotEntry): string {
   const { day, week, month, ytd } = entry.variations;
   const old = entry.stale ? " (cours ancien)" : "";
   return (
-    `- ${entry.name} (${entry.symbol}) : clôture ${entry.lastClose} ${entry.currency} au ${entry.lastCloseDate}${old} ; ` +
+    `- ${entry.name} (${entry.symbol}) : clôture ${formatClose(entry.lastClose, entry.type, entry.currency)} au ${entry.lastCloseDate}${old} ; ` +
     `1 jour ${percent(day)}, 1 semaine ${percent(week)}, 1 mois ${percent(month)}, depuis janvier ${percent(ytd)}.`
   );
 }
