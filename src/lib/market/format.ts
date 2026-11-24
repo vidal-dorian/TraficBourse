@@ -17,3 +17,8 @@ export function formatClose(close: number, type: string, currency: string): stri
     return `${plain.format(close)} ${currency}`;
   }
 }
+
+/** "au 18/11" for a close dated "2026-11-18". */
+export function sinceMention(date: string): string {
+  return `au ${date.slice(8, 10)}/${date.slice(5, 7)}`;
+}

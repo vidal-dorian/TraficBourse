@@ -164,6 +164,8 @@ src/lib/market/twelvedata.ts  `MarketDataProvider` backed by Twelve Data (fallba
 src/lib/market/latest.ts      last known close of every instrument, with its `stale` flag
 src/lib/market/format.ts      French formatting of a close by instrument type
 src/lib/market/snapshot.ts    variations (1 day, 1 week, 1 month, year to date) of one instrument, pure
+src/lib/market/tiles.ts       data of the market tiles of the brief pages (US #21)
+src/lib/render/market-tiles.tsx market tiles above the news: close, day variation, 1 month SVG curve
 src/app/marches/page.tsx      markets page: last close of every instrument
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 src/jobs/schedule.ts          schedules (Europe/Paris) and their registration
@@ -191,6 +193,12 @@ When Yahoo fails on an instrument (its call throws), the job asks Twelve Data (`
 ### Markets page
 
 `/marches` (`src/app/marches/page.tsx`, linked as « Marchés » in the nav, rendered at each request) lists every instrument by name (`src/lib/market/latest.ts`, `getLatestCloses`) with its last known close, formatted in French by type (`src/lib/market/format.ts`: points for an index, 4 decimals for a currency pair, the instrument's currency otherwise). The expected close is that of the last finished session before Paris today: the day before for `crypto`, the previous weekday for every other type (Monday, Saturday and Sunday expect Friday). When the latest stored date is earlier than that, the line also shows « au JJ/MM » (e.g. « au 18/11 »). Bank holidays are not modelled, so an instrument closed the day before shows the mention too. An instrument with no price yet shows « Pas encore de cours ». No chart yet.
+
+### Market tiles on the brief pages
+
+On the home page and on `/brief/[date]`, a `<section aria-label="Marchés">` sits between the TL;DR and the news (`afterTldr` slot of `BriefContent`; when a daily and a weekly brief share a date, it appears once, in the first). `MarketTiles` (`src/lib/render/market-tiles.tsx`, server component, no chart library) shows one tile per instrument, sorted by name (`localeCompare` `fr`, the same by-name order as `get_market_snapshot`; `/marches` keeps the SQL order): its name (full name in the `title`), its last close (`formatClose`), « au JJ/MM » when that close is stale against the brief date (`isStale`; `sinceMention` lives in `src/lib/market/format.ts` and is shared with `/marches`), its day variation signed and coloured (« +1,25 % » green, « −0,80 % » red with the real minus sign U+2212, « 0,00 % » or « n/d » neutral) and a 1 month curve drawn as an inline SVG polyline (`curvePoints`, only with at least 2 points). An instrument with no close shows « Pas encore de cours ». The tiles scroll horizontally on narrow screens (the list takes keyboard focus).
+
+The data comes from `getMarketTiles(db, briefDate)` (`src/lib/market/tiles.ts`): only closes dated strictly before the brief date count, i.e. what `get_market_snapshot` gave Claude that morning, so an archived brief shows the closes of its own date. The day variation comes from `computeVariations`; the curve runs from the last close date minus one calendar month (`subtractOneMonth`, exported from `snapshot.ts`) to the last close.
 
 **The Yahoo symbols have not been verified live** (no network in the development sandbox): check them on the Pi after the first run, see [DEPLOY.md](./DEPLOY.md#closing-prices).
 

@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
 import { getDb } from "@/lib/db/client";
-import { formatClose } from "@/lib/market/format";
+import { formatClose, sinceMention } from "@/lib/market/format";
 import { getLatestCloses } from "@/lib/market/latest";
 
 // Read at each request: a new close shows up without a rebuild.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Marchés — Veille boursière" };
-
-/** "au 18/11" for a close dated "2026-11-18". */
-function sinceMention(date: string): string {
-  return `au ${date.slice(8, 10)}/${date.slice(5, 7)}`;
-}
 
 /** Markets: the last known close of every tracked instrument, with its date when it is not the day's (US #19). */
 export default function MarketsPage() {
@@ -32,7 +27,12 @@ export default function MarketsPage() {
             ) : (
               <span className="text-right">
                 {formatClose(entry.close, entry.type, entry.currency)}
-                {entry.stale ? <span className="ml-2 text-sm text-neutral-500">{sinceMention(entry.date)}</span> : null}
+                {entry.stale ? (
+                  <>
+                    {" "}
+                    <span className="ml-1 text-sm text-neutral-500">{sinceMention(entry.date)}</span>
+                  </>
+                ) : null}
               </span>
             )}
           </li>
