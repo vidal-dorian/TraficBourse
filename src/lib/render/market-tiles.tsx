@@ -45,7 +45,10 @@ function Tile({ tile, briefDate }: { tile: MarketTile; briefDate: string }) {
         <>
           <p className="mt-1 text-sm">{formatClose(tile.lastClose, tile.type, tile.currency)}
             {tile.lastCloseDate !== null && isStale(tile.type, tile.lastCloseDate, briefDate) ? (
-              <span className="ml-1 text-xs text-neutral-500">{sinceMention(tile.lastCloseDate)}</span>
+              <>
+                {" "}
+                <span className="text-xs text-neutral-500">{sinceMention(tile.lastCloseDate)}</span>
+              </>
             ) : null}
           </p>
           <p className={`text-sm font-semibold ${variation.className}`}>{variation.text}</p>

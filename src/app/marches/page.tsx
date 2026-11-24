@@ -27,7 +27,12 @@ export default function MarketsPage() {
             ) : (
               <span className="text-right">
                 {formatClose(entry.close, entry.type, entry.currency)}
-                {entry.stale ? <span className="ml-2 text-sm text-neutral-500">{sinceMention(entry.date)}</span> : null}
+                {entry.stale ? (
+                  <>
+                    {" "}
+                    <span className="ml-1 text-sm text-neutral-500">{sinceMention(entry.date)}</span>
+                  </>
+                ) : null}
               </span>
             )}
           </li>
