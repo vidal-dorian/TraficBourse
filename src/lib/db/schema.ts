@@ -1,7 +1,10 @@
 // Drizzle schema of the app; see CLAUDE.md §6 for the data model.
 import { sql } from "drizzle-orm";
 import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
-import { BRIEF_KINDS, CATEGORIES, MOODS } from "../schemas/brief-enums";
+import { BRIEF_KINDS, CATEGORIES, CHART_RANGES, MOODS } from "../schemas/brief-enums";
+
+/** The chart spec of a news item as stored (see `ChartSpec` in schemas/brief.ts). */
+export type StoredChartSpec = { type: "price"; symbols: string[]; range: (typeof CHART_RANGES)[number]; normalize: boolean };
 
 /**
  * Technical key/value settings of the app (no business data). It also gives the first
@@ -69,6 +72,8 @@ export const newsItems = sqliteTable(
     tickers: text("tickers", { mode: "json" }).$type<string[]>().notNull(),
     sourceName: text("source_name").notNull(),
     sourceUrl: text("source_url").notNull(),
+    /** The chart spec as validated (`normalize` defaulted), null for a news item without chart. */
+    chartSpec: text("chart_spec", { mode: "json" }).$type<StoredChartSpec>(),
   },
   (table) => [unique("news_items_brief_rank_unique").on(table.briefId, table.rank)],
 );
