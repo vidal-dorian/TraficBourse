@@ -52,6 +52,18 @@ describe("getMarketOverview", () => {
     expect(entries.find((e) => e.symbol === "^GSPC")?.variations.day).toBe(2);
   });
 
+  it("matches computeVariations when the last close is in January and the month reference is the earlier one", () => {
+    const entries = expectSameAsFullHistory("2026-01-05", {
+      "^FCHI": [["2025-12-01", 100], ["2025-12-02", 110], ["2025-12-31", 120], ["2026-01-02", 130]],
+    });
+    expect(entries.find((e) => e.symbol === "^FCHI")?.variations.month).toBe(18.18);
+  });
+
+  it("matches computeVariations when the previous close is older than every reference", () => {
+    const entries = expectSameAsFullHistory("2026-01-15", { "^FCHI": [["2025-11-01", 100], ["2026-01-15", 110]] });
+    expect(entries.find((e) => e.symbol === "^FCHI")?.variations.day).toBe(10);
+  });
+
   it("sorts the instruments by name with the French collation", () => {
     const names = overviewOf("2026-11-23", {}).map((e) => e.name);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "fr")));
