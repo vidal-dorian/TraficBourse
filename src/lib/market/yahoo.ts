@@ -28,7 +28,7 @@ export interface YahooQuoteSummaryClient {
     options: { modules: ("calendarEvents" | "earnings")[] },
   ): Promise<{
     calendarEvents?: { earnings?: { earningsDate?: Date[]; isEarningsDateEstimate?: boolean } };
-    earnings?: { earningsChart?: { earningsDate?: Date[] } };
+    earnings?: { earningsChart?: { earningsDate?: Date[]; isEarningsDateEstimate?: boolean } };
   }>;
 }
 
@@ -78,10 +78,11 @@ export function createYahooProvider(client: YahooChartClient & Partial<YahooQuot
       if (!client.quoteSummary) return null;
       const summary = await client.quoteSummary(providerSymbol, { modules: ["calendarEvents", "earnings"] });
       const calendar = summary.calendarEvents?.earnings;
-      // An estimated date is a guessed range, not a publication: only confirmed calendar dates count.
+      const chart = summary.earnings?.earningsChart;
+      // An estimated date is a guessed range, not a publication: only confirmed dates count, in both modules.
       const instants = [
         ...(calendar?.isEarningsDateEstimate ? [] : (calendar?.earningsDate ?? [])),
-        ...(summary.earnings?.earningsChart?.earningsDate ?? []),
+        ...(chart?.isEarningsDateEstimate ? [] : (chart?.earningsDate ?? [])),
       ];
       // The latest scheduled or confirmed date on or before `asOf`; upcoming dates are ignored. The 06:30
       // run on the earnings day therefore records it, and `get_watchlist` flags it the next session.

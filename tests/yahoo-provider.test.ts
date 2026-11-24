@@ -79,6 +79,17 @@ describe("US #25 — Yahoo earnings date, estimates and time zone", () => {
     expect(await provider.getLastEarningsDate?.("AIR.PA", "2026-11-23")).toBe("2026-07-30");
   });
 
+  it("given estimated dates in both modules, when asked, then none is taken", async () => {
+    const estimate = [new Date("2026-11-19T08:00:00Z"), new Date("2026-11-24T08:00:00Z")];
+    const quoteSummary = async () => ({
+      calendarEvents: { earnings: { isEarningsDateEstimate: true, earningsDate: estimate } },
+      earnings: { earningsChart: { isEarningsDateEstimate: true, earningsDate: estimate } },
+    });
+    const provider = createYahooProvider({ quoteSummary } as never);
+
+    expect(await provider.getLastEarningsDate?.("AIR.PA", "2026-11-19")).toBeNull();
+  });
+
   it("given a late-UTC instant, when asked, then the date is the Paris day", async () => {
     const quoteSummary = async () => ({
       calendarEvents: { earnings: { earningsDate: [new Date("2026-11-19T23:30:00Z")] } },
