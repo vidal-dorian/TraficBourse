@@ -45,6 +45,7 @@ describe("C90 — adding a result creates and follows the instrument, with one y
       currency: "EUR",
       in_watchlist: 1,
       fallback_symbol: null,
+      last_earnings_date: null,
     });
   });
 
