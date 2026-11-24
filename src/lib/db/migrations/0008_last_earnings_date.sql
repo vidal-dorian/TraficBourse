@@ -1,0 +1,1 @@
+ALTER TABLE `instruments` ADD `last_earnings_date` text;
