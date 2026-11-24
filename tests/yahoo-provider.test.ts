@@ -44,3 +44,26 @@ describe("US #18 — Yahoo provider mapping", () => {
     }
   });
 });
+
+describe("US #25 — Yahoo last earnings date", () => {
+  const summary = (calendar: string[], chart: string[]) => ({
+    calendarEvents: { earnings: { earningsDate: calendar.map((d) => new Date(`${d}T08:00:00Z`)) } },
+    earnings: { earningsChart: { earningsDate: chart.map((d) => new Date(`${d}T08:00:00Z`)) } },
+  });
+
+  it("given past and upcoming dates, when asked, then the latest one on or before asOf is returned", async () => {
+    const quoteSummary = vi.fn(async () => summary(["2026-11-19", "2027-02-10"], ["2026-07-30"]));
+    const provider = createYahooProvider({ quoteSummary } as never);
+
+    expect(await provider.getLastEarningsDate?.("AIR.PA", "2026-11-23")).toBe("2026-11-19");
+    expect(quoteSummary).toHaveBeenCalledWith("AIR.PA", { modules: ["calendarEvents", "earnings"] });
+  });
+
+  it("given only upcoming dates or none, when asked, then null", async () => {
+    const upcoming = createYahooProvider({ quoteSummary: async () => summary(["2027-02-10"], []) } as never);
+    const none = createYahooProvider({ quoteSummary: async () => ({}) } as never);
+
+    expect(await upcoming.getLastEarningsDate?.("AIR.PA", "2026-11-23")).toBeNull();
+    expect(await none.getLastEarningsDate?.("AIR.PA", "2026-11-23")).toBeNull();
+  });
+});

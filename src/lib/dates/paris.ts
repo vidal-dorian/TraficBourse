@@ -26,6 +26,15 @@ export function subtractDays(date: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
 }
 
+/** The weekday (Monday to Friday) before `date`: Monday gives the Friday before, Saturday and Sunday give Friday. */
+export function previousWeekday(date: string): string {
+  // Day of the week of a calendar date, read at UTC midnight (0 = Sunday).
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  if (weekday === 0) return subtractDays(date, 2);
+  if (weekday === 1) return subtractDays(date, 3);
+  return subtractDays(date, 1);
+}
+
 /** `date` minus `months` calendar months, the day clamped to the end of the shorter month (31 March - 1 month = 28 February). */
 export function subtractMonths(date: string, months: number): string {
   const [year, month, day] = date.split("-").map(Number);

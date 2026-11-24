@@ -1,6 +1,6 @@
 // MarketDataProvider backed by yahoo-finance2 (unofficial Yahoo Finance API).
 import YahooFinance from "yahoo-finance2";
-import { subtractDays } from "../dates/paris";
+import { parisToday, subtractDays } from "../dates/paris";
 import type { DailyBar, MarketDataProvider } from "./provider";
 
 /** The part of the yahoo-finance2 client this provider uses (so tests can inject a fake). */
@@ -21,7 +21,18 @@ export interface YahooChartClient {
   }>;
 }
 
-function defaultClient(): YahooChartClient {
+/** The part of the yahoo-finance2 client used to read the results dates (US #25). */
+export interface YahooQuoteSummaryClient {
+  quoteSummary(
+    symbol: string,
+    options: { modules: ("calendarEvents" | "earnings")[] },
+  ): Promise<{
+    calendarEvents?: { earnings?: { earningsDate?: Date[] } };
+    earnings?: { earningsChart?: { earningsDate?: Date[] } };
+  }>;
+}
+
+function defaultClient(): YahooChartClient & YahooQuoteSummaryClient {
   return new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 }
 
@@ -39,7 +50,7 @@ function localDay(instant: Date, timeZone: string | undefined, gmtOffsetSeconds:
   return new Date(instant.getTime() + (gmtOffsetSeconds ?? 0) * 1000).toISOString().slice(0, 10);
 }
 
-export function createYahooProvider(client: YahooChartClient = defaultClient()): MarketDataProvider {
+export function createYahooProvider(client: YahooChartClient & Partial<YahooQuoteSummaryClient> = defaultClient()): MarketDataProvider {
   return {
     name: "yahoo-finance2",
     async getDailyBars(providerSymbol, from, to) {
@@ -62,6 +73,17 @@ export function createYahooProvider(client: YahooChartClient = defaultClient()):
         });
       }
       return bars;
+    },
+    async getLastEarningsDate(providerSymbol, asOf) {
+      if (!client.quoteSummary) return null;
+      const summary = await client.quoteSummary(providerSymbol, { modules: ["calendarEvents", "earnings"] });
+      const instants = [
+        ...(summary.calendarEvents?.earnings?.earningsDate ?? []),
+        ...(summary.earnings?.earningsChart?.earningsDate ?? []),
+      ];
+      // Most recent publication on or before `asOf`; upcoming dates are ignored. ISO dates sort as text.
+      const days = instants.map((instant) => parisToday(instant)).filter((day) => day <= asOf);
+      return days.length > 0 ? days.sort().at(-1)! : null;
     },
   };
 }

@@ -31,6 +31,28 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Stores the last results date of a watchlist stock (US #25). A date overwrites, null keeps what is
+ * stored; a failure is logged and never fails the stock's prices.
+ */
+async function refreshLastEarningsDate(
+  db: Db,
+  provider: MarketDataProvider,
+  instrument: typeof instruments.$inferSelect,
+  today: string,
+  logger: JobLogger,
+): Promise<void> {
+  if (!provider.getLastEarningsDate || !instrument.inWatchlist || instrument.type !== "stock") return;
+  try {
+    const date = await provider.getLastEarningsDate(instrument.providerSymbol, today);
+    if (date !== null) {
+      db.update(instruments).set({ lastEarningsDate: date }).where(eq(instruments.symbol, instrument.symbol)).run();
+    }
+  } catch (error) {
+    logger.error(`prices: ${instrument.symbol} earnings date failed: ${errorMessage(error)}`);
+  }
+}
+
 /** `date` ("YYYY-MM-DD") one calendar year earlier (29 February becomes 28 February). */
 function oneYearBefore(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
@@ -82,6 +104,7 @@ export async function runPricesJob({
       }
       const stored = storeFinishedBars(db, instrument.symbol, fetched, today);
       result.updated.push({ symbol: instrument.symbol, bars: stored, source });
+      await refreshLastEarningsDate(db, provider, instrument, today, logger);
     } catch (error) {
       const message = errorMessage(error);
       result.failed.push({ symbol: instrument.symbol, error: message });

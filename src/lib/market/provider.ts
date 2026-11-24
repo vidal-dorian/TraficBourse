@@ -16,4 +16,9 @@ export interface MarketDataProvider {
   readonly name: string;
   /** Daily bars of `providerSymbol` from `from` to `to`, both inclusive ("YYYY-MM-DD"). */
   getDailyBars(providerSymbol: string, from: string, to: string): Promise<DailyBar[]>;
+  /**
+   * Day of the most recent results publication of `providerSymbol` on or before `asOf`
+   * ("YYYY-MM-DD"), or null when the provider does not know one. Optional: not every provider has it.
+   */
+  getLastEarningsDate?(providerSymbol: string, asOf: string): Promise<string | null>;
 }
