@@ -31,6 +31,11 @@ function expectedCloseDate(type: string, today: string): string {
   return yesterday;
 }
 
+/** True when `lastCloseDate` is earlier than the close expected on Paris day `today` (never without a close). */
+export function isStale(type: string, lastCloseDate: string | null, today: string): boolean {
+  return lastCloseDate !== null && lastCloseDate < expectedCloseDate(type, today);
+}
+
 /** One entry per instrument, ordered by name, with the latest row of `prices_daily` of its symbol. */
 export function getLatestCloses(db: Db, now: Date = new Date()): LatestClose[] {
   const today = parisToday(now);
@@ -55,7 +60,7 @@ export function getLatestCloses(db: Db, now: Date = new Date()): LatestClose[] {
         currency: instrument.currency,
         close: last?.close ?? null,
         date,
-        stale: date !== null && date < expectedCloseDate(instrument.type, today),
+        stale: isStale(instrument.type, date, today),
       };
     });
 }
