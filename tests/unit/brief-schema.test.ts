@@ -3,8 +3,8 @@
 //
 // Contract: `src/lib/schemas/brief.ts` exports `BriefPayload`, the Zod schema of the
 // `publish_brief` payload for this story (tldr, mood, 1 to 5 news items). Strict objects:
-// stockNotes, concept and storylineUpdates arrive with later tickets and are rejected
-// until then. Each issue carries the path of the faulty field.
+// concept and storylineUpdates arrive with later tickets and are rejected until then
+// (stockNotes is accepted since US #26). Each issue carries the path of the faulty field.
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import {
