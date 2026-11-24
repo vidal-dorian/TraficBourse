@@ -3,8 +3,8 @@ import { formatClose } from "../../src/lib/market/format";
 
 describe("formatClose with minor units", () => {
   it("keeps pence as pence instead of reading them as pounds", () => {
-    expect(formatClose(1234.5, "stock", "GBp")).toBe("1 234,50 GBp");
-    expect(formatClose(1234.5, "stock", "GBX")).toBe("1 234,50 GBX");
+    expect(formatClose(1234.5, "stock", "GBp")).toMatch(/^1\s234,50\sGBp$/);
+    expect(formatClose(1234.5, "stock", "GBX")).toMatch(/^1\s234,50\sGBX$/);
   });
   it("still formats ISO currencies", () => {
     expect(formatClose(10, "stock", "EUR")).toContain("€");
