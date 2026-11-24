@@ -15,6 +15,8 @@ import { makeMigratedDatabase } from "./helpers/mcp";
 
 const DAILY_TEXT = "Le brief du jour n'est pas encore arrivé";
 const WEEKLY_TEXT = "Le récap de la semaine n'est pas encore arrivé";
+// Where the banner starts in the raw markup: React escapes the apostrophe of its text as &#x27;.
+const BANNER = 'role="status"';
 
 let databasePath: string;
 
@@ -60,9 +62,9 @@ describe("US #27 — banner on the home page", () => {
     expect(banners).toHaveLength(1);
     expect(banners[0]).toContain(DAILY_TEXT);
     expect(html).toContain("TLDR-DE-LA-VEILLE");
-    expect(html.indexOf(DAILY_TEXT)).toBeLessThan(html.indexOf("<h1"));
-    expect(html.indexOf(DAILY_TEXT)).toBeLessThan(html.indexOf("TLDR-DE-LA-VEILLE"));
-    expect(html.indexOf("<main")).toBeLessThan(html.indexOf(DAILY_TEXT));
+    expect(html.indexOf(BANNER)).toBeLessThan(html.indexOf("<h1"));
+    expect(html.indexOf(BANNER)).toBeLessThan(html.indexOf("TLDR-DE-LA-VEILLE"));
+    expect(html.indexOf("<main")).toBeLessThan(html.indexOf(BANNER));
   });
 
   it("C1 — given a winter weekday with no brief at 07:59 Paris, when I open the home page, then no banner is shown", async () => {
@@ -93,7 +95,7 @@ describe("US #27 — banner on the home page", () => {
 
     expect(banners).toHaveLength(1);
     expect(banners[0]).toContain(DAILY_TEXT);
-    expect(html.indexOf(DAILY_TEXT)).toBeLessThan(html.indexOf("Aucun brief publié"));
+    expect(html.indexOf(BANNER)).toBeLessThan(html.indexOf("Aucun brief publié"));
   });
 
   it("C1 — given a weekday after 08:00, when only a draft daily brief of today exists, then the banner is shown", async () => {
@@ -118,7 +120,7 @@ describe("US #27 — banner on the home page", () => {
 
     expect(banners).toHaveLength(1);
     expect(banners[0]).toContain(WEEKLY_TEXT);
-    expect(html.indexOf(WEEKLY_TEXT)).toBeLessThan(html.indexOf("TLDR-DU-VENDREDI"));
+    expect(html.indexOf(BANNER)).toBeLessThan(html.indexOf("TLDR-DU-VENDREDI"));
   });
 
   it("C2 — given a Saturday with no recap at 09:59 Paris, when I open the home page, then no banner is shown", async () => {
