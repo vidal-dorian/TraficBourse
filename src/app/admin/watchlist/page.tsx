@@ -50,8 +50,10 @@ export default async function AdminWatchlistPage({
   searchParams: Promise<{ q?: string | string[]; status?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const query = (first(params.q) ?? "").trim();
-  const status = STATUS_MESSAGES[first(params.status) ?? ""];
+  // Capped: the query only goes to the provider's search, a longer one is never useful.
+  const query = (first(params.q) ?? "").trim().slice(0, 100);
+  const statusCode = first(params.status) ?? "";
+  const status = Object.hasOwn(STATUS_MESSAGES, statusCode) ? STATUS_MESSAGES[statusCode] : undefined;
   const followed = listWatchlist(getDb());
   const followedSymbols = new Set(followed.map((entry) => entry.symbol));
   const outcome = query ? await search(query) : undefined;
