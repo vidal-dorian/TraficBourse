@@ -9,6 +9,8 @@ import type { ChartSeries } from "@/lib/market/chart";
 /** One neutral, distinct colour per curve (a chart shows at most 3 instruments). */
 const LINE_COLORS = ["#1d4ed8", "#b45309", "#047857"];
 
+const frenchNumber = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const HEIGHT = 224;
 
 export function PriceChart({ series }: { series: ChartSeries[] }) {
@@ -27,12 +29,12 @@ export function PriceChart({ series }: { series: ChartSeries[] }) {
         autoSize: true,
         height: HEIGHT,
         layout: { attributionLogo: true, fontFamily: "inherit" },
-        localization: { locale: "fr-FR" },
+        localization: { locale: "fr-FR", priceFormatter: (price: number) => frenchNumber.format(price) },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false },
       });
       series.forEach((entry, index) => {
-        const line = chart.addSeries(LineSeries, { color: LINE_COLORS[index % LINE_COLORS.length], lineWidth: 2 });
+        const line = chart.addSeries(LineSeries, { color: LINE_COLORS[index % LINE_COLORS.length], lineWidth: 2, title: entry.name ?? entry.symbol });
         line.setData(entry.points.map((point) => ({ time: point.date, value: point.value })));
       });
       chart.timeScale().fitContent();

@@ -23,6 +23,25 @@ export interface InstrumentVariations {
 
 const NO_VARIATIONS: Variations = { day: null, week: null, month: null, ytd: null };
 
+/** A reference range: the 5D / 1M / 3M / YTD / 1Y of a chart (week, month and ytd are those of the variations). */
+export type ReferenceRange = "5D" | "1M" | "3M" | "YTD" | "1Y";
+
+/** The day a `range` looks back to from `anchor` ("YYYY-MM-DD", the date of the last close). */
+export function referenceDate(anchor: string, range: ReferenceRange): string {
+  switch (range) {
+    case "5D":
+      return subtractDays(anchor, 7);
+    case "1M":
+      return subtractMonths(anchor, 1);
+    case "3M":
+      return subtractMonths(anchor, 3);
+    case "YTD":
+      return `${Number(anchor.slice(0, 4)) - 1}-12-31`;
+    case "1Y":
+      return subtractMonths(anchor, 12);
+  }
+}
+
 /** Percentage change from `reference` to `last`, rounded to 2 decimals; null without a usable reference. */
 function percentChange(last: number, reference: number | undefined): number | null {
   if (reference === undefined || reference === 0) return null;
@@ -40,15 +59,14 @@ export function computeVariations(closes: readonly DatedClose[], date: string): 
   if (!last) return { lastClose: null, lastCloseDate: null, variations: { ...NO_VARIATIONS } };
 
   const closeOnOrBefore = (target: string): number | undefined => known.findLast((entry) => entry.date <= target)?.close;
-  const previousYearEnd = `${Number(last.date.slice(0, 4)) - 1}-12-31`;
   return {
     lastClose: last.close,
     lastCloseDate: last.date,
     variations: {
       day: percentChange(last.close, known.at(-2)?.close),
-      week: percentChange(last.close, closeOnOrBefore(subtractDays(last.date, 7))),
-      month: percentChange(last.close, closeOnOrBefore(subtractMonths(last.date, 1))),
-      ytd: percentChange(last.close, closeOnOrBefore(previousYearEnd)),
+      week: percentChange(last.close, closeOnOrBefore(referenceDate(last.date, "5D"))),
+      month: percentChange(last.close, closeOnOrBefore(referenceDate(last.date, "1M"))),
+      ytd: percentChange(last.close, closeOnOrBefore(referenceDate(last.date, "YTD"))),
     },
   };
 }

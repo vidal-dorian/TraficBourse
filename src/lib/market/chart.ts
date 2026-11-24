@@ -1,10 +1,9 @@
 // Series of a news item's chart (US #22): closes of `prices_daily` only, cut to the range of the
 // spec and optionally put in base 100. Claude sends a spec, never values.
-import { asc, inArray } from "drizzle-orm";
-import { subtractDays, subtractMonths } from "../dates/paris";
+import { and, asc, eq, gte, inArray, lte, max } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { instruments, pricesDaily, type StoredChartSpec } from "../db/schema";
-import type { DatedClose } from "./snapshot";
+import { referenceDate, type DatedClose } from "./snapshot";
 
 export interface ChartSeries {
   symbol: string;
@@ -20,61 +19,65 @@ export interface ChartData {
   series: ChartSeries[];
 }
 
-/** Day before the first day of the window ending on `endDate` (the window is `> start`, `<= endDate`). */
-function windowStart(range: StoredChartSpec["range"], endDate: string): string {
-  switch (range) {
-    case "5D":
-      return subtractDays(endDate, 7);
-    case "1M":
-      return subtractMonths(endDate, 1);
-    case "3M":
-      return subtractMonths(endDate, 3);
-    case "YTD":
-      return `${Number(endDate.slice(0, 4)) - 1}-12-31`;
-    case "1Y":
-      return subtractMonths(endDate, 12);
-  }
-}
-
 /**
- * The series of `spec` ending on `endDate` ("YYYY-MM-DD", the brief date) from the closes of each
- * symbol, in any order. Normalized values are 100 x close / first close of the window, 2 decimals.
- * A symbol without close in the window gets no point.
+ * The series of `spec` for the brief dated `endDate` ("YYYY-MM-DD"), from the closes of each symbol
+ * in any order, with the reference rule of the snapshot variations: per symbol the anchor is the
+ * last close on or before `endDate`, the base the last close on or before the reference date of
+ * the range (the first close after it when the history is shorter), then every close up to the
+ * anchor. Normalized values are 100 x close / base, 2 decimals, so the last one minus 100 is the
+ * snapshot's variation. A symbol without close gets no point.
  */
 export function computeChartSeries(
   spec: Pick<StoredChartSpec, "symbols" | "range" | "normalize">,
   closes: Readonly<Record<string, readonly DatedClose[]>>,
   endDate: string,
 ): ChartData {
-  const start = windowStart(spec.range, endDate);
   const series = spec.symbols.map((symbol): ChartSeries => {
-    const inWindow = (closes[symbol] ?? [])
-      .filter((entry) => entry.date > start && entry.date <= endDate)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const base = inWindow[0]?.close;
+    const known = (closes[symbol] ?? []).filter((entry) => entry.date <= endDate).sort((a, b) => a.date.localeCompare(b.date));
+    const anchor = known.at(-1);
+    if (!anchor) return { symbol, points: [] };
+
+    const reference = referenceDate(anchor.date, spec.range);
+    const baseIndex = Math.max(0, known.findLastIndex((entry) => entry.date <= reference));
+    const shown = known.slice(baseIndex);
+    const base = shown[0].close;
     // A zero base cannot be normalized: draw nothing rather than infinities.
     if (spec.normalize && base === 0) return { symbol, points: [] };
     return {
       symbol,
-      points: inWindow.map(({ date, close }) => ({
-        date,
-        value: spec.normalize && base ? Math.round((close / base) * 10000) / 100 : close,
-      })),
+      points: shown.map(({ date, close }) => ({ date, value: spec.normalize ? Math.round((close / base) * 10000) / 100 : close })),
     };
   });
   return { range: spec.range, normalize: spec.normalize, series };
 }
 
-/** `computeChartSeries` on the closes stored in `prices_daily`, series named after `instruments`. */
-export function loadChartData(db: Db, spec: StoredChartSpec, endDate: string): ChartData {
-  const rows = db
-    .select({ symbol: pricesDaily.symbol, date: pricesDaily.date, close: pricesDaily.close })
+/** Closes of `symbol` from its base to its anchor for `range` and `endDate`: only what the series needs is read. */
+function loadCloses(db: Db, symbol: string, range: StoredChartSpec["range"], endDate: string): DatedClose[] {
+  const forSymbol = eq(pricesDaily.symbol, symbol);
+  const anchor = db
+    .select({ date: max(pricesDaily.date) })
     .from(pricesDaily)
-    .where(inArray(pricesDaily.symbol, spec.symbols))
+    .where(and(forSymbol, lte(pricesDaily.date, endDate)))
+    .get()?.date;
+  if (!anchor) return [];
+
+  const reference = referenceDate(anchor, range);
+  const baseDate = db
+    .select({ date: max(pricesDaily.date) })
+    .from(pricesDaily)
+    .where(and(forSymbol, lte(pricesDaily.date, reference)))
+    .get()?.date;
+  return db
+    .select({ date: pricesDaily.date, close: pricesDaily.close })
+    .from(pricesDaily)
+    .where(and(forSymbol, gte(pricesDaily.date, baseDate ?? reference), lte(pricesDaily.date, anchor)))
     .orderBy(asc(pricesDaily.date))
     .all();
-  const closes: Record<string, DatedClose[]> = {};
-  for (const { symbol, date, close } of rows) (closes[symbol] ??= []).push({ date, close });
+}
+
+/** `computeChartSeries` on the closes stored in `prices_daily`, series named after `instruments`. */
+export function loadChartData(db: Db, spec: StoredChartSpec, endDate: string): ChartData {
+  const closes = Object.fromEntries(spec.symbols.map((symbol) => [symbol, loadCloses(db, symbol, spec.range, endDate)]));
 
   const names = new Map(
     db

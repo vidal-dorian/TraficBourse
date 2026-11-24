@@ -31,6 +31,12 @@ const RANGE_LABELS: Record<ChartData["range"], string> = {
 
 const frenchNumber = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** "2026-11-23" -> "23/11/2026". */
+function frenchDay(date: string): string {
+  const [year, month, day] = date.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 /** « CAC 40 et S&P 500 », « CAC 40, S&P 500 et Nasdaq 100 ». */
 function joinNames(names: string[]): string {
   return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} et ${names.at(-1)}`;
@@ -64,7 +70,7 @@ function ChartFigure({ chart }: { chart: ChartData }) {
             <tbody>
               {dates.map((date) => (
                 <tr key={date}>
-                  <th scope="row">{date}</th>
+                  <th scope="row">{frenchDay(date)}</th>
                   {chart.series.map((series) => {
                     const value = valueAt(series, date);
                     return <td key={series.symbol}>{value === undefined ? "—" : frenchNumber.format(value)}</td>;
