@@ -24,7 +24,7 @@ export interface InstrumentVariations {
 const NO_VARIATIONS: Variations = { day: null, week: null, month: null, ytd: null };
 
 /** `date` minus one calendar month, the day clamped to the end of the shorter month (31 March -> 28 February). */
-function subtractOneMonth(date: string): string {
+export function subtractOneMonth(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
   const daysInPreviousMonth = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
   return new Date(Date.UTC(year, month - 2, Math.min(day, daysInPreviousMonth))).toISOString().slice(0, 10);

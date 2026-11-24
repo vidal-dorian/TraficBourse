@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getBriefsOfDate } from "@/lib/briefs/archives";
 import { getDb } from "@/lib/db/client";
 import { formatFrenchDate, parisToday } from "@/lib/dates/paris";
+import { MarketTiles } from "@/lib/render/market-tiles";
 import { BriefContent } from "@/lib/render/brief";
 import { BriefDate } from "@/lib/schemas/brief";
 
@@ -26,15 +27,16 @@ export default async function BriefPage({ params }: Props) {
   // The segment comes from the URL: only a real calendar date reaches the database.
   if (!BriefDate.safeParse(date).success) notFound();
 
-  const briefs = getBriefsOfDate(getDb(), date, parisToday(new Date()));
+  const db = getDb();
+  const briefs = getBriefsOfDate(db, date, parisToday(new Date()));
   if (briefs.length === 0) notFound();
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <div className="space-y-16">
-        {briefs.map((brief) => (
+        {briefs.map((brief, index) => (
           <section key={brief.kind}>
-            <BriefContent brief={brief} />
+            <BriefContent brief={brief} afterTldr={index === 0 ? <MarketTiles db={db} briefDate={date} /> : undefined} />
           </section>
         ))}
       </div>

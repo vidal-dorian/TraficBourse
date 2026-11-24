@@ -2,6 +2,7 @@
 // mood, the TL;DR and every news item. Markdown fields go through the sanitized renderer, titles
 // and source names stay plain text.
 import Image from "next/image";
+import type { ReactNode } from "react";
 import type { BriefWithNews } from "@/lib/briefs/latest";
 import { formatFrenchDate } from "@/lib/dates/paris";
 import { ExternalLink, Markdown, safeHref } from "@/lib/render/markdown";
@@ -19,7 +20,8 @@ export function briefTitle(kind: BriefKind, date: string): string {
   return kind === "weekly" ? `Récap de la semaine — ${french}` : french;
 }
 
-export function BriefContent({ brief }: { brief: BriefWithNews }) {
+/** `afterTldr` is shown between the TL;DR and the news (the market tiles, US #21). */
+export function BriefContent({ brief, afterTldr }: { brief: BriefWithNews; afterTldr?: ReactNode }) {
   return (
     <>
       <h1 className="text-2xl font-semibold first-letter:uppercase">{briefTitle(brief.kind, brief.date)}</h1>
@@ -27,6 +29,7 @@ export function BriefContent({ brief }: { brief: BriefWithNews }) {
         Humeur du marché : <strong className="text-neutral-900">{MOOD_LABELS[brief.mood]}</strong>
       </p>
       <Markdown text={brief.tldr} className="mt-4 rounded border border-neutral-200 bg-neutral-50 p-4 leading-relaxed" />
+      {afterTldr}
 
       {brief.news.map((item) => {
         const sourceHref = safeHref(item.sourceUrl);

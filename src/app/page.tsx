@@ -1,6 +1,7 @@
 import { getLatestBrief } from "@/lib/briefs/latest";
 import { getDb } from "@/lib/db/client";
 import { parisToday } from "@/lib/dates/paris";
+import { MarketTiles } from "@/lib/render/market-tiles";
 import { BriefContent } from "@/lib/render/brief";
 
 // Read at each request: each morning's brief shows up without a rebuild.
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 /** « Aujourd'hui »: the latest published brief (CLAUDE.md §5). */
 export default function HomePage() {
-  const brief = getLatestBrief(getDb(), parisToday(new Date()));
+  const db = getDb();
+  const brief = getLatestBrief(db, parisToday(new Date()));
 
   if (!brief) {
     return (
@@ -24,7 +26,7 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
-      <BriefContent brief={brief} />
+      <BriefContent brief={brief} afterTldr={<MarketTiles db={db} briefDate={brief.date} />} />
     </main>
   );
 }
