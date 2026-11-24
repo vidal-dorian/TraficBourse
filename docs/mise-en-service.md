@@ -98,7 +98,7 @@ contrat, recopier le prompt mis à jour dans les deux tâches.
    brief après l'essai à blanc. L'heure `at` est en UTC.
 4. Relancer la tâche est sans danger : le brief d'une date et d'un type est remplacé, jamais dupliqué.
 5. Le brief s'affiche sur la page d'accueil « Aujourd'hui » (`https://<domaine>/`) : sa date, son TL;DR,
-   l'humeur du marché et chaque actualité avec sa source.
+   l'humeur du marché, chaque actualité avec sa source et, s'il y a des fiches, la section « Ma watchlist ».
 
 Faire le même essai pour la tâche du samedi (`kind` `weekly`) avant le premier samedi.
 

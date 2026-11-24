@@ -62,14 +62,15 @@ Arguments de publish_brief :
     ces clés, et aucune autre :
     - symbol : le symbole d'une valeur renvoyée par get_watchlist. Si le dry run refuse une ligne
       « payload.stockNotes.N.symbol », supprime cette fiche au lieu de changer le symbole, puis relance le dry run.
-    - reason : "move", "earnings" ou "news".
+    - reason : "move" quand get_watchlist donne un mouvement, "earnings" quand il donne des résultats publiés,
+      sinon "news" (y compris pour des résultats que tu as trouvés toi-même par recherche).
     - summary : ce qui s'est passé pour cette action, 600 caractères au plus, Markdown simple, sans chiffre de
       cours ni de variation (l'app affiche elle-même la variation du jour).
     - newsRefs (facultatif, omets la clé si aucune) : jusqu'à 5 URLs absolues http ou https de pages que tu as
       réellement lues.
     - nextEvent (facultatif, omets la clé si aucun) : le prochain événement à surveiller, 200 caractères au plus,
       en texte brut, jamais vide.
-  Tous les textes sont obligatoires, non vides, sans HTML. tldr, summary, whyItMatters et impact acceptent un
+  Tous les textes envoyés sont non vides et sans HTML. tldr, summary, whyItMatters et impact acceptent un
   Markdown simple (gras, italique, liens http(s), listes) ; title et sourceName sont du texte brut. N'envoie
   aucune autre clé : elle serait refusée.
 
