@@ -18,7 +18,7 @@ the Pi itself remains possible as a fallback ([Build locally](#build-locally-fal
 | --- | --- | --- |
 | `migrate` | `node dist/lib/db/migrate.js` | One-shot: applies the database migrations, then exits. `web` and `jobs` only start once it succeeded. |
 | `web` | `node server.js` | Next.js server on port 3000, published on `127.0.0.1:WEB_PORT` on the host only, health check on `/api/health`. |
-| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. For now it only logs an hourly heartbeat; the real jobs come in phase 2. |
+| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. It logs an hourly heartbeat and runs the prices job every day at 06:30 (see [Closing prices](#closing-prices)). It is the only service that calls an external API (Yahoo Finance), so it needs outbound internet access; no new environment variable. |
 
 The SQLite database is the file `/data/bourse.db` inside the containers, bind-mounted from
 `BOURSE_DATA_DIR` on the host (default `/mnt/data/bourse`). Every container logs with the
@@ -171,6 +171,20 @@ docker image prune -f                # drop the old images
 ```
 
 `up -d` runs `migrate` again before restarting `web` and `jobs`.
+
+## Closing prices
+
+The `jobs` container fetches the closing prices of the instruments every day at 06:30 (Europe/Paris)
+and stores them in the database. The default instruments are seeded by a migration, so `migrate`
+creates them on the first `up -d`. Nothing to configure.
+
+**Check the Yahoo symbols after the first deploy.** They were not verified against Yahoo Finance
+when the job was written (no network in the development environment). The job logs one error per
+symbol Yahoo does not know and goes on with the others, so look for `prices:` lines in the logs of
+`jobs` after the first 06:30 run (the job does not run at start-up), or check the symbols against
+Yahoo Finance by hand: `^FCHI`, `^STOXX50E`, `^GSPC`, `^NDX`, `IWDA.AS`, `EURUSD=X`, `GC=F`, `BZ=F`, `BTC-EUR`.
+A symbol that fails is fixed with a new migration (the `provider_symbol` column of `instruments`),
+never by editing the applied one.
 
 ## Logs
 

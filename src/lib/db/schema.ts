@@ -1,6 +1,6 @@
 // Drizzle schema of the app; see CLAUDE.md §6 for the data model.
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { BRIEF_KINDS, CATEGORIES, MOODS } from "../schemas/brief-enums";
 
 /**
@@ -117,3 +117,40 @@ export const oauthTokens = sqliteTable("oauth_tokens", {
   codeHash: text("code_hash").notNull(),
   revoked: integer("revoked").notNull().default(0),
 });
+
+/** Kinds of tracked instruments (CLAUDE.md §6). */
+export const INSTRUMENT_TYPES = ["index", "etf", "stock", "fx", "crypto", "commodity"] as const;
+
+/**
+ * The tracked universe (CLAUDE.md §6). `symbol` is the app's own key, `provider_symbol` the one
+ * the market-data provider knows (the same for Yahoo today). The default ones are seeded by a migration.
+ */
+export const instruments = sqliteTable("instruments", {
+  symbol: text("symbol").primaryKey(),
+  providerSymbol: text("provider_symbol").notNull(),
+  name: text("name").notNull(),
+  type: text("type", { enum: INSTRUMENT_TYPES }).notNull(),
+  exchange: text("exchange"),
+  currency: text("currency").notNull(),
+  inWatchlist: integer("in_watchlist", { mode: "boolean" }).notNull().default(false),
+});
+
+/**
+ * Closing history, one row per instrument and day (`date` is the exchange's local day,
+ * "YYYY-MM-DD"). Written only by the prices job, never by Claude.
+ */
+export const pricesDaily = sqliteTable(
+  "prices_daily",
+  {
+    symbol: text("symbol")
+      .notNull()
+      .references(() => instruments.symbol, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    open: real("open"),
+    high: real("high"),
+    low: real("low"),
+    close: real("close").notNull(),
+    volume: integer("volume"),
+  },
+  (table) => [primaryKey({ columns: [table.symbol, table.date] })],
+);

@@ -134,6 +134,8 @@ Keep `raw_payload` so a brief can be re-rendered after a design change.
 
 Default instruments to seed (verify each Yahoo symbol before committing): CAC 40 `^FCHI`, Euro Stoxx 50 `^STOXX50E`, S&P 500 `^GSPC`, Nasdaq 100 `^NDX`, an MSCI World ETF (e.g. `IWDA.AS`), EUR/USD `EURUSD=X`, gold `GC=F`, Brent `BZ=F`, BTC `BTC-EUR`. Watchlist stocks: ask Dorian.
 
+Prices (US #18): the `jobs` container runs the prices job (`src/jobs/prices.ts`, schedule `30 6 * * *` Europe/Paris in `src/jobs/schedule.ts`) through the `MarketDataProvider` interface (`src/lib/market/provider.ts`, implemented by `src/lib/market/yahoo.ts` with `yahoo-finance2`). Tables `instruments` and `prices_daily` (migration 0004); the nine default instruments of this section are seeded by migration 0005, none in the watchlist. First run: one year; later runs restart from the last stored date, inclusive; upsert on (`symbol`, `date`); bars dated Paris today are not stored; a failing symbol is logged and the others go on. The Yahoo symbols were not verified live: check them on the Pi after deploy. Not built yet: `get_market_snapshot`, `get_watchlist`, charts, missing-brief check, backup. Details in `README.md`.
+
 ---
 
 ## 7. MCP contract

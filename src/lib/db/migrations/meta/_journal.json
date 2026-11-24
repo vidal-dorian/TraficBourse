@@ -29,6 +29,20 @@
       "when": 1795424556856,
       "tag": "0003_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795471069283,
+      "tag": "0004_prices",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795471073585,
+      "tag": "0005_seed_instruments",
+      "breakpoints": true
     }
   ]
 }

@@ -155,8 +155,12 @@ src/lib/dates/paris.ts        Europe/Paris calendar dates, day arithmetic and Fr
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
-src/lib/db/migrations/        generated SQL migrations
+src/lib/db/migrations/        generated SQL migrations (0005 seeds the default instruments)
+src/lib/market/provider.ts    `MarketDataProvider` interface (daily bars of a provider symbol)
+src/lib/market/yahoo.ts       `MarketDataProvider` backed by yahoo-finance2
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
+src/jobs/schedule.ts          schedules (Europe/Paris) and their registration
+src/jobs/prices.ts            prices job: closing prices into `prices_daily`
 docs/mise-en-service.md       setup guide: connector and scheduled tasks (French)
 docs/prompt-tache-planifiee.md prompt in force for the scheduled tasks (French)
 public/illustrations/         one static SVG per news category
@@ -166,6 +170,14 @@ docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 .github/workflows/ci.yml      CI: checks on every push and PR, image publication from main
 .github/dependabot.yml        weekly bumps of the actions, npm packages and base image
 ```
+
+## Closing prices
+
+The app fetches the closing prices itself; Claude never supplies a number. The `jobs` container runs the prices job (`src/jobs/prices.ts`) every day at 06:30 Europe/Paris (`30 6 * * *`, `src/jobs/schedule.ts`; it does not run at start-up). The job only knows the `MarketDataProvider` interface (`src/lib/market/provider.ts`); `src/lib/market/yahoo.ts` implements it with `yahoo-finance2` (unofficial, may break, hence the interface). Migration `0004` creates `instruments` and `prices_daily` (primary key `symbol` + `date`), migration `0005` seeds the nine default instruments: CAC 40 `^FCHI`, Euro Stoxx 50 `^STOXX50E`, S&P 500 `^GSPC`, Nasdaq 100 `^NDX`, `IWDA.AS`, EUR/USD `EURUSD=X`, gold `GC=F`, Brent `BZ=F`, Bitcoin `BTC-EUR`. None is in the watchlist yet.
+
+For each instrument, the first run fetches one year (Paris today minus one year); later runs restart from the last stored date, inclusive, so a revised close is corrected. Rows are upserted on (`symbol`, `date`), so a second run the same day creates no duplicate. A bar dated Paris today is dropped: at 06:30 that day is still trading (24/7 markets, futures, FX) and its close would be a live price stored as final. A bar's `date` is the exchange's local day. A failing symbol is logged (`prices: <symbol> failed: …`) and the others are processed; the run ends with a `prices: N instrument(s) updated, M failed` line. No new environment variable; the container needs outbound internet access.
+
+**The Yahoo symbols have not been verified live** (no network in the development sandbox): check them on the Pi after the first run, see [DEPLOY.md](./DEPLOY.md#closing-prices).
 
 ## CI
 
