@@ -42,6 +42,11 @@ export function referenceDate(anchor: string, range: ReferenceRange): string {
   }
 }
 
+/** `date` minus one calendar month, the day clamped to the end of the shorter month (31 March -> 28 February). */
+export function subtractOneMonth(date: string): string {
+  return subtractMonths(date, 1);
+}
+
 /** Percentage change from `reference` to `last`, rounded to 2 decimals; null without a usable reference. */
 function percentChange(last: number, reference: number | undefined): number | null {
   if (reference === undefined || reference === 0) return null;

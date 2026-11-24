@@ -166,6 +166,8 @@ src/lib/market/format.ts      French formatting of a close by instrument type
 src/lib/market/snapshot.ts    variations (1 day, 1 week, 1 month, year to date) of one instrument, and the reference date of a range, pure
 src/lib/market/chart.ts       series of a news item's chart from `prices_daily` (`computeChartSeries` pure, `loadChartData`)
 src/components/price-chart.tsx client component drawing the curves (Lightweight Charts)
+src/lib/market/tiles.ts       data of the market tiles of the brief pages (US #21)
+src/lib/render/market-tiles.tsx market tiles above the news: close, day variation, 1 month SVG curve
 src/app/marches/page.tsx      markets page: last close of every instrument
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 src/jobs/schedule.ts          schedules (Europe/Paris) and their registration
@@ -201,6 +203,12 @@ A news item may carry a `chart` spec (US #22): `type` `"price"`, 1 to 3 distinct
 The series are computed when the page is rendered, from `prices_daily` only (`src/lib/market/chart.ts`). For each symbol the anchor is the last close on or before the brief date, and the curve starts at the base: the last close on or before the reference date of the range (`referenceDate` in `src/lib/market/snapshot.ts`, the same rule as the variations of `get_market_snapshot`: `5D` is 7 days back, `1M` and `3M` calendar months back with the day clamped, `YTD` 31 December of the previous year, `1Y` one year back). When the stored history is shorter than the range, the curve starts at the first close; the snapshot variation is then `n/d` (null) while the chart still shows a curve. With `normalize`, values are in base 100 (100 × close / base, 2 decimals), so the last point minus 100 is the variation of the snapshot. A symbol without close draws nothing; when no symbol has any, the figure shows « Pas encore de cours pour ce graphique. ».
 
 On the home page and the brief of a date, the figure sits under the item after « Impact possible », with a French caption (names, range, « base 100 »). `src/components/price-chart.tsx` is a client component using `lightweight-charts` 5.3.0 (series names as legend, French number format, the TradingView attribution logo is kept); a table hidden visually (`sr-only`, dates `JJ/MM/AAAA`) gives screen readers the same figures.
+
+### Market tiles on the brief pages
+
+On the home page and on `/brief/[date]`, a `<section aria-label="Marchés">` sits between the TL;DR and the news (`afterTldr` slot of `BriefContent`; when a daily and a weekly brief share a date, it appears once, in the first). `MarketTiles` (`src/lib/render/market-tiles.tsx`, server component, no chart library) shows one tile per instrument, sorted by name (`localeCompare` `fr`, the same by-name order as `get_market_snapshot`; `/marches` keeps the SQL order): its name (full name in the `title`), its last close (`formatClose`), « au JJ/MM » when that close is stale against the brief date (`isStale`; `sinceMention` lives in `src/lib/market/format.ts` and is shared with `/marches`), its day variation signed and coloured (« +1,25 % » green, « −0,80 % » red with the real minus sign U+2212, « 0,00 % » or « n/d » neutral) and a 1 month curve drawn as an inline SVG polyline (`curvePoints`, only with at least 2 points). An instrument with no close shows « Pas encore de cours ». The tiles scroll horizontally on narrow screens (the list takes keyboard focus).
+
+The data comes from `getMarketTiles(db, briefDate)` (`src/lib/market/tiles.ts`): only closes dated strictly before the brief date count, i.e. what `get_market_snapshot` gave Claude that morning, so an archived brief shows the closes of its own date. The day variation comes from `computeVariations`; the curve runs from the last close date minus one calendar month (`subtractOneMonth`, exported from `snapshot.ts`) to the last close.
 
 **The Yahoo symbols have not been verified live** (no network in the development sandbox): check them on the Pi after the first run, see [DEPLOY.md](./DEPLOY.md#closing-prices).
 
