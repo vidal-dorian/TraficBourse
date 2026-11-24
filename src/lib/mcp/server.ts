@@ -15,6 +15,7 @@ import {
   type CallToolRequest,
   type CallToolResult,
   type Tool,
+  type ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { recordToolCall, shortError } from "./audit";
@@ -35,6 +36,8 @@ export type McpTool<Shape extends z.ZodRawShape = z.ZodRawShape> = {
   name: string;
   description: string;
   inputSchema: Shape;
+  /** Hints listed to clients, e.g. `readOnlyHint` for a tool that never writes. */
+  annotations?: ToolAnnotations;
 } & (
   | {
       rawArguments?: false;
@@ -115,7 +118,7 @@ function registerTools(tools: readonly McpTool[]): Map<string, RegisteredTool> {
     const input = z.strictObject(tool.inputSchema);
     // Same conversion as the SDK's `registerTool`: draft-7, input side of transforms.
     const inputSchema = z.toJSONSchema(input, { target: "draft-7", io: "input" }) as Tool["inputSchema"];
-    registry.set(tool.name, { tool, input, definition: { name: tool.name, description: tool.description, inputSchema } });
+    registry.set(tool.name, { tool, input, definition: { name: tool.name, description: tool.description, inputSchema, annotations: tool.annotations } });
   }
   return registry;
 }
