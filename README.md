@@ -163,6 +163,7 @@ src/lib/market/yahoo.ts       `MarketDataProvider` backed by yahoo-finance2
 src/lib/market/twelvedata.ts  `MarketDataProvider` backed by Twelve Data (fallback of Yahoo)
 src/lib/market/latest.ts      last known close of every instrument, with its `stale` flag
 src/lib/market/format.ts      French formatting of a close by instrument type
+src/lib/market/snapshot.ts    variations (1 day, 1 week, 1 month, year to date) of one instrument, pure
 src/app/marches/page.tsx      markets page: last close of every instrument
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 src/jobs/schedule.ts          schedules (Europe/Paris) and their registration
