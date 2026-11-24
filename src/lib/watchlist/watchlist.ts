@@ -14,10 +14,13 @@ export interface WatchlistEntry {
   exchange: string | null;
 }
 
+/** The bars of a followed stock could not be fetched or stored; the stock itself is followed. */
+export class HistoryFetchError extends Error {}
+
 /**
  * Follows `result`: creates the instrument (an existing one keeps its data, only the flag is set),
  * then fetches one year of history (Paris today minus 1 year) with the storing rules of the prices
- * job. If the provider fails the add rejects, but the stock stays followed: the prices job fills it.
+ * job. If the bars fail the add rejects with a HistoryFetchError, but the stock stays followed: the prices job fills it.
  */
 export async function addToWatchlist(
   db: Db,
@@ -38,8 +41,12 @@ export async function addToWatchlist(
     .run();
 
   const today = parisToday(now);
-  const bars = await provider.getDailyBars(symbol, subtractMonths(today, 12), today);
-  return { symbol, stored: storeFinishedBars(db, symbol, bars, today) };
+  try {
+    const bars = await provider.getDailyBars(symbol, subtractMonths(today, 12), today);
+    return { symbol, stored: storeFinishedBars(db, symbol, bars, today) };
+  } catch (error) {
+    throw new HistoryFetchError(error instanceof Error ? error.message : String(error), { cause: error });
+  }
 }
 
 /** Stops following `symbol`, deleting nothing. False when the symbol is unknown. */

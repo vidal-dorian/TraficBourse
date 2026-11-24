@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { createYahooProvider } from "@/lib/market/yahoo";
-import { createYahooSearch } from "@/lib/market/yahoo-search";
+import { createYahooCurrencyLookup, createYahooSearch } from "@/lib/market/yahoo-search";
 import { addStockAsOwner, removeStockAsOwner } from "@/lib/watchlist/owner-actions";
 import type { InstrumentSearchResult } from "@/lib/market/search";
 
@@ -28,10 +28,10 @@ export async function addStock(form: FormData): Promise<void> {
     name: field(form, "name"),
     exchange: field(form, "exchange") || null,
     type: field(form, "type") as InstrumentSearchResult["type"],
-    currency: field(form, "currency"),
+    currency: "",
   };
   const outcome = await addStockAsOwner(
-    { headers: await headers(), env: process.env, db: getDb(), provider: createYahooProvider(), search: createYahooSearch() },
+    { headers: await headers(), env: process.env, db: getDb(), provider: createYahooProvider(), search: createYahooSearch(), currencies: createYahooCurrencyLookup() },
     result,
   );
   done(outcome.ok ? "added" : outcome.reason);

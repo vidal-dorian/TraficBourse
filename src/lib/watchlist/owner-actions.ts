@@ -6,8 +6,8 @@ import { isAdminAuthDisabled, readAccessConfig, verifyAccessToken } from "../aut
 import type { Db } from "../db/client";
 import { INSTRUMENT_TYPES } from "../db/schema";
 import type { MarketDataProvider } from "../market/provider";
-import type { InstrumentSearchProvider, InstrumentSearchResult } from "../market/search";
-import { addToWatchlist, removeFromWatchlist } from "./watchlist";
+import type { CurrencyLookup, InstrumentSearchProvider, InstrumentSearchResult } from "../market/search";
+import { addToWatchlist, HistoryFetchError, removeFromWatchlist } from "./watchlist";
 
 export interface OwnerContext {
   headers: Headers;
@@ -19,19 +19,27 @@ export interface OwnerContext {
    * come from the browser, so name, type and exchange are replaced by what the search says.
    */
   search?: InstrumentSearchProvider;
+  /**
+   * When set, the currency is looked up here (Yahoo's own, minor units such as "GBp" kept as is)
+   * and replaces the submitted one; a failed lookup refuses the add rather than guess it.
+   */
+  currencies?: CurrencyLookup;
   now?: Date;
 }
 
+/** The owner adds actions and ETFs: indexes, currencies, crypto and futures are not offered. */
+export const ADDABLE_TYPES: readonly InstrumentSearchResult["type"][] = ["stock", "etf"];
+
 export type AddOutcome =
   | { ok: true; symbol: string; stored: number }
-  | { ok: false; reason: "forbidden" | "invalid" | "not_found" | "search_failed" }
+  | { ok: false; reason: "forbidden" | "invalid" | "not_found" | "search_failed" | "currency_failed" | "write_failed" }
   /** The stock is followed but its history could not be fetched: the prices job will fill it. */
   | { ok: false; reason: "history_failed"; symbol: string };
 
 export type RemoveOutcome = { ok: true } | { ok: false; reason: "forbidden" | "invalid" | "not_found" };
 
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=-]{0,19}$/;
-const CURRENCY = /^[A-Z]{3}$/;
+const CURRENCY = /^[A-Za-z]{3}$/;
 
 async function isOwner(ctx: Pick<OwnerContext, "headers" | "env">): Promise<boolean> {
   if (isAdminAuthDisabled(ctx.env)) return true;
@@ -51,8 +59,8 @@ function validate(result: InstrumentSearchResult): InstrumentSearchResult | null
   if (typeof providerSymbol !== "string" || !SYMBOL.test(providerSymbol)) return null;
   if (typeof name !== "string" || name.trim() === "" || name.length > 200) return null;
   if (exchange !== null && (typeof exchange !== "string" || exchange.length > 100)) return null;
-  if (!INSTRUMENT_TYPES.includes(type)) return null;
-  if (typeof currency !== "string" || !CURRENCY.test(currency)) return null;
+  if (!INSTRUMENT_TYPES.includes(type) || !ADDABLE_TYPES.includes(type)) return null;
+  if (typeof currency !== "string" || (currency !== "" && !CURRENCY.test(currency))) return null;
   return { providerSymbol, name: name.trim(), exchange: exchange?.trim() || null, type, currency };
 }
 
@@ -74,12 +82,23 @@ export async function addStockAsOwner(ctx: OwnerContext, result: InstrumentSearc
     }
   }
 
+  if (ctx.currencies) {
+    try {
+      checked = { ...checked, currency: await ctx.currencies.currencyOf(checked.providerSymbol) };
+    } catch (error) {
+      console.error(`Watchlist add: currency of ${checked.providerSymbol} failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { ok: false, reason: "currency_failed" };
+    }
+  }
+  // Without a currency (no lookup given, none submitted) nothing is guessed.
+  if (checked.currency === "") return { ok: false, reason: "invalid" };
+
   try {
     const outcome = await addToWatchlist(ctx.db, { result: checked, provider: ctx.provider, now: ctx.now });
     return { ok: true, ...outcome };
   } catch (error) {
-    console.error(`Watchlist add: history of ${checked.providerSymbol} failed: ${error instanceof Error ? error.message : String(error)}`);
-    return { ok: false, reason: "history_failed", symbol: checked.providerSymbol };
+    console.error(`Watchlist add: ${checked.providerSymbol} failed: ${error instanceof Error ? error.message : String(error)}`);
+    return error instanceof HistoryFetchError ? { ok: false, reason: "history_failed", symbol: checked.providerSymbol } : { ok: false, reason: "write_failed" };
   }
 }
 

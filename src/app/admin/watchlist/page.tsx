@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import type { InstrumentSearchResult } from "@/lib/market/search";
 import { createYahooSearch } from "@/lib/market/yahoo-search";
+import { ADDABLE_TYPES } from "@/lib/watchlist/owner-actions";
 import { listWatchlist } from "@/lib/watchlist/watchlist";
 import { addStock, removeStock } from "./actions";
 
@@ -22,6 +23,8 @@ const STATUS_MESSAGES: Record<string, { text: string; error: boolean }> = {
   invalid: { text: "Action refusée : données invalides.", error: true },
   not_found: { text: "Action introuvable.", error: true },
   search_failed: { text: "Ajout impossible : la recherche est indisponible, réessayez plus tard.", error: true },
+  currency_failed: { text: "Ajout impossible : la devise de l'action n'a pas pu être vérifiée, réessayez plus tard.", error: true },
+  write_failed: { text: "Ajout impossible : l'enregistrement a échoué, réessayez.", error: true },
   history_failed: {
     text: "Action suivie, mais son historique n'a pas pu être récupéré : il sera complété à la prochaine mise à jour des cours.",
     error: true,
@@ -34,7 +37,7 @@ function first(value: string | string[] | undefined): string | undefined {
 
 async function search(query: string): Promise<{ results: InstrumentSearchResult[] } | { failed: true }> {
   try {
-    return { results: await createYahooSearch().searchInstruments(query) };
+    return { results: (await createYahooSearch().searchInstruments(query)).filter((result) => ADDABLE_TYPES.includes(result.type)) };
   } catch (error) {
     console.error(`Watchlist search failed: ${error instanceof Error ? error.message : String(error)}`);
     return { failed: true };
@@ -132,7 +135,6 @@ export default async function AdminWatchlistPage({
                       <input type="hidden" name="name" value={result.name} />
                       <input type="hidden" name="exchange" value={result.exchange ?? ""} />
                       <input type="hidden" name="type" value={result.type} />
-                      <input type="hidden" name="currency" value={result.currency} />
                       <button type="submit" className="underline">
                         Ajouter
                       </button>

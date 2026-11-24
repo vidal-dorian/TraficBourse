@@ -22,7 +22,7 @@ export default function AdminPage() {
       </p>
       <p className="mt-4 leading-relaxed">Bientôt ici :</p>
       <ul className="mt-2 list-disc pl-6 leading-relaxed">
-                <li>les instruments suivis ;</li>
+        <li>les instruments suivis ;</li>
         <li>le journal des appels MCP ;</li>
         <li>l&apos;état des tâches planifiées.</li>
       </ul>

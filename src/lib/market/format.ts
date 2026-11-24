@@ -5,7 +5,11 @@
 export function formatClose(close: number, type: string, currency: string): string {
   if (type === "index") return `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(close)} pts`;
   const digits = type === "fx" ? 4 : 2;
+  // Minor units (pence "GBp"/"GBX", South African cents "ZAc") are not ISO codes: Intl would read "GBp"
+  // as pounds and show a price 100 times too high, so they keep the plain number and their code.
+  const isMinorUnit = currency !== currency.toUpperCase() || currency === "GBX";
   try {
+    if (isMinorUnit) throw new RangeError("minor unit");
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
       currency,
