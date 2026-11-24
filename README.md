@@ -34,6 +34,7 @@ Settings are read from the environment. `.env.example` lists them; copy it to `.
 | `MCP_TOKEN` | — | Bearer token required on `/api/mcp`. Generate one with `openssl rand -hex 32`. Unset or empty: option A is off (OAuth tokens still work when configured). |
 | `PUBLIC_URL` | — | Public origin of the app (e.g. `https://bourse.example.com`, no path), the issuer and base of the OAuth endpoints. It must be the exact origin Claude reaches. Unset or not an http(s) URL: the OAuth endpoints answer `503` and `/api/mcp` accepts `MCP_TOKEN` only. |
 | `MCP_OAUTH_PASSWORD` | — | Password typed on the OAuth login page, at least 16 characters (`openssl rand -base64 24`). Unset, blank or shorter: the login is always refused. Changing it and restarting the app revokes every OAuth token already issued. |
+| `TWELVE_DATA_API_KEY` | — | Twelve Data API key for the prices job fallback (free tier, see [Closing prices](#closing-prices)). Unset or blank: no fallback, the `jobs` container logs it once at start. Read by `jobs` only. |
 | `MCP_OAUTH_REDIRECT_URIS` | `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback` | Comma-separated redirect URIs a client may register (and use at login). Any other one is refused at registration. |
 
 The database is always opened in WAL mode with a busy timeout, so the web and jobs processes can share the file.
@@ -155,9 +156,13 @@ src/lib/dates/paris.ts        Europe/Paris calendar dates, day arithmetic and Fr
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
-src/lib/db/migrations/        generated SQL migrations (0005 seeds the default instruments)
+src/lib/db/migrations/        generated SQL migrations (0005 seeds the default instruments, 0006 adds `fallback_symbol`)
 src/lib/market/provider.ts    `MarketDataProvider` interface (daily bars of a provider symbol)
 src/lib/market/yahoo.ts       `MarketDataProvider` backed by yahoo-finance2
+src/lib/market/twelvedata.ts  `MarketDataProvider` backed by Twelve Data (fallback of Yahoo)
+src/lib/market/latest.ts      last known close of every instrument, with its `stale` flag
+src/lib/market/format.ts      French formatting of a close by instrument type
+src/app/marches/page.tsx      markets page: last close of every instrument
 src/jobs/index.ts             node-cron entrypoint of the `jobs` container
 src/jobs/schedule.ts          schedules (Europe/Paris) and their registration
 src/jobs/prices.ts            prices job: closing prices into `prices_daily`
@@ -175,7 +180,15 @@ docker-compose.yml            stack run on the Pi (see DEPLOY.md)
 
 The app fetches the closing prices itself; Claude never supplies a number. The `jobs` container runs the prices job (`src/jobs/prices.ts`) every day at 06:30 Europe/Paris (`30 6 * * *`, `src/jobs/schedule.ts`; it does not run at start-up). The job only knows the `MarketDataProvider` interface (`src/lib/market/provider.ts`); `src/lib/market/yahoo.ts` implements it with `yahoo-finance2` (unofficial, may break, hence the interface). Migration `0004` creates `instruments` and `prices_daily` (primary key `symbol` + `date`), migration `0005` seeds the nine default instruments: CAC 40 `^FCHI`, Euro Stoxx 50 `^STOXX50E`, S&P 500 `^GSPC`, Nasdaq 100 `^NDX`, `IWDA.AS`, EUR/USD `EURUSD=X`, gold `GC=F`, Brent `BZ=F`, Bitcoin `BTC-EUR`. None is in the watchlist yet.
 
-For each instrument, the first run fetches one year (Paris today minus one year); later runs restart from the last stored date, inclusive, so a revised close is corrected. Rows are upserted on (`symbol`, `date`), so a second run the same day creates no duplicate. A bar dated Paris today is dropped: at 06:30 that day is still trading (24/7 markets, futures, FX) and its close would be a live price stored as final. A bar's `date` is the exchange's local day. A failing symbol is logged (`prices: <symbol> failed: …`) and the others are processed; the run ends with a `prices: N instrument(s) updated, M failed` line. No new environment variable; the container needs outbound internet access.
+For each instrument, the first run fetches one year (Paris today minus one year); later runs restart from the last stored date, inclusive, so a revised close is corrected. Rows are upserted on (`symbol`, `date`), so a second run the same day creates no duplicate. A bar dated Paris today is dropped: at 06:30 that day is still trading (24/7 markets, futures, FX) and its close would be a live price stored as final. A bar's `date` is the exchange's local day. A failing symbol is logged (`prices: <symbol> failed: …`) and the others are processed; the run ends with a `prices: N instrument(s) updated, M failed` line. The container needs outbound internet access.
+
+### Twelve Data fallback
+
+When Yahoo fails on an instrument (its call throws), the job asks Twelve Data (`src/lib/market/twelvedata.ts`, `MarketDataProvider` named `twelvedata`) for the same period, if the instrument has a `fallback_symbol` (migration `0006`, nullable: the Twelve Data symbol, null = not covered) and `TWELVE_DATA_API_KEY` is set. Only the symbols Yahoo failed on are asked. The rules are the same (bars dated Paris today dropped, upsert on `symbol` + `date`, rows stored under the app symbol). Migration `0006` sets `EUR/USD` for `EURUSD=X` and `BTC/EUR` for `BTC-EUR`; the indices, the Euronext ETF and the futures stay null, because the free tier covers US stocks and ETFs, forex and crypto only. A US stock or ETF added later gets its plain ticker (e.g. `AAPL`) as `fallback_symbol`. The Yahoo error and the fallback used are logged; if the fallback fails too, or there is none, the symbol is reported failed (both messages when both failed). The final line becomes `prices: N instrument(s) updated (yahoo: A, twelvedata: B), M failed`. The free tier allows 8 calls a minute: request starts are at least 8 s apart (`minIntervalMs`). Error messages never contain the key.
+
+### Markets page
+
+`/marches` (`src/app/marches/page.tsx`, linked as « Marchés » in the nav, rendered at each request) lists every instrument by name (`src/lib/market/latest.ts`, `getLatestCloses`) with its last known close, formatted in French by type (`src/lib/market/format.ts`: points for an index, 4 decimals for a currency pair, the instrument's currency otherwise). The expected close is that of the last finished session before Paris today: the day before for `crypto`, the previous weekday for every other type (Monday, Saturday and Sunday expect Friday). When the latest stored date is earlier than that, the line also shows « au JJ/MM » (e.g. « au 18/11 »). Bank holidays are not modelled, so an instrument closed the day before shows the mention too. An instrument with no price yet shows « Pas encore de cours ». No chart yet.
 
 **The Yahoo symbols have not been verified live** (no network in the development sandbox): check them on the Pi after the first run, see [DEPLOY.md](./DEPLOY.md#closing-prices).
 

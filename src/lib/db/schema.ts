@@ -123,7 +123,9 @@ export const INSTRUMENT_TYPES = ["index", "etf", "stock", "fx", "crypto", "commo
 
 /**
  * The tracked universe (CLAUDE.md §6). `symbol` is the app's own key, `provider_symbol` the one
- * the market-data provider knows (the same for Yahoo today). The default ones are seeded by a migration.
+ * the market-data provider knows (the same for Yahoo today). `fallback_symbol` is the symbol of the
+ * Twelve Data fallback (US #19), null when its free tier does not cover the instrument. The default
+ * ones are seeded by a migration.
  */
 export const instruments = sqliteTable("instruments", {
   symbol: text("symbol").primaryKey(),
@@ -133,6 +135,7 @@ export const instruments = sqliteTable("instruments", {
   exchange: text("exchange"),
   currency: text("currency").notNull(),
   inWatchlist: integer("in_watchlist", { mode: "boolean" }).notNull().default(false),
+  fallbackSymbol: text("fallback_symbol"),
 });
 
 /**

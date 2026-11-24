@@ -23,6 +23,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Link href="/archives" className="underline underline-offset-2">
             Archives
           </Link>
+          <Link href="/marches" className="underline underline-offset-2">
+            Marchés
+          </Link>
         </nav>
         {children}
         <footer className="mx-auto max-w-2xl px-4 py-6 text-sm text-neutral-500">

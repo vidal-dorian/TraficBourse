@@ -18,7 +18,7 @@ the Pi itself remains possible as a fallback ([Build locally](#build-locally-fal
 | --- | --- | --- |
 | `migrate` | `node dist/lib/db/migrate.js` | One-shot: applies the database migrations, then exits. `web` and `jobs` only start once it succeeded. |
 | `web` | `node server.js` | Next.js server on port 3000, published on `127.0.0.1:WEB_PORT` on the host only, health check on `/api/health`. |
-| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. It logs an hourly heartbeat and runs the prices job every day at 06:30 (see [Closing prices](#closing-prices)). It is the only service that calls an external API (Yahoo Finance), so it needs outbound internet access; no new environment variable. |
+| `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. It logs an hourly heartbeat and runs the prices job every day at 06:30 (see [Closing prices](#closing-prices)). It is the only service that calls external APIs (Yahoo Finance, and Twelve Data as a fallback when `TWELVE_DATA_API_KEY` is set), so it needs outbound internet access. |
 
 The SQLite database is the file `/data/bourse.db` inside the containers, bind-mounted from
 `BOURSE_DATA_DIR` on the host (default `/mnt/data/bourse`). Every container logs with the
@@ -176,7 +176,15 @@ docker image prune -f                # drop the old images
 
 The `jobs` container fetches the closing prices of the instruments every day at 06:30 (Europe/Paris)
 and stores them in the database. The default instruments are seeded by a migration, so `migrate`
-creates them on the first `up -d`. Nothing to configure.
+creates them on the first `up -d`. Nothing to configure for Yahoo.
+
+**Optional fallback (Twelve Data).** When Yahoo fails on a symbol, the job asks Twelve Data for the
+instruments it covers on its free tier (EUR/USD and Bitcoin among the defaults; US stocks and ETFs
+added later). Create a free account on https://twelvedata.com, copy the API key and set it in `.env`:
+`TWELVE_DATA_API_KEY=<key>`, then `docker compose up -d jobs`. The free tier allows 8 calls a
+minute and the job spaces its requests. Without the key, `jobs` logs that there is no fallback and a
+Yahoo failure leaves the symbol without a new close (the `/marches` page then shows its last known
+close with « au JJ/MM »). Never commit the key.
 
 **Check the Yahoo symbols after the first deploy.** They were not verified against Yahoo Finance
 when the job was written (no network in the development environment). The job logs one error per

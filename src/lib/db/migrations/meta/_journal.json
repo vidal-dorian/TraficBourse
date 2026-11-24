@@ -43,6 +43,13 @@
       "when": 1795471073585,
       "tag": "0005_seed_instruments",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795504088435,
+      "tag": "0006_fallback_symbol",
+      "breakpoints": true
     }
   ]
 }
