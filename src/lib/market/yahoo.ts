@@ -87,7 +87,9 @@ export function createYahooProvider(client: YahooChartClient & Partial<YahooQuot
       // The latest scheduled or confirmed date on or before `asOf`; upcoming dates are ignored. The 06:30
       // run on the earnings day therefore records it, and `get_watchlist` flags it the next session.
       // ISO dates sort as text.
-      const days = instants.map((instant) => parisToday(instant)).filter((day) => day <= asOf);
+      const days = instants
+        .map((instant) => parisToday(instant))
+        .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= asOf);
       return days.length > 0 ? days.sort().at(-1)! : null;
     },
   };
