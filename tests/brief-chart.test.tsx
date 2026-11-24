@@ -10,7 +10,10 @@
 //   instrument in spec order, values formatted French-style (« 100,00 »). Tests read that table.
 // - an item without chart has no figure. When no series has points: « Pas encore de cours pour ce
 //   graphique. » and no table.
-// - values come from `prices_daily` only, closes inside the window (> start, <= brief date).
+// - values come from `prices_daily` only. Window as `get_market_snapshot` computes its variations:
+//   the base is the last close on or before the reference date (brief date - 1 month for 1M), then
+//   the closes up to the brief date; the last normalized value - 100 is the snapshot's variation.
+// - the first cell of a data row is the date as « JJ/MM/AAAA ».
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newsItem, validPayload, type JsonObject } from "./fixtures/brief-payloads";
 import { renderBriefPage, renderHomePage, seedPayloads, textOf } from "./helpers/home-page";
@@ -83,6 +86,15 @@ function tableRows(figure: string): string[][] {
   return rows.filter((cells) => cells.length >= 2 && /^[\d\s,]+$/.test(cells[cells.length - 1])).map((cells) => cells.slice(1));
 }
 
+/** The first cell (the date) of each data row. */
+function rowDates(figure: string): string[] {
+  const table = /<table\b[^>]*>([\s\S]*?)<\/table>/i.exec(figure)?.[1] ?? "";
+  return [...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)]
+    .map((row) => [...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => textOf(cell[1])))
+    .filter((cells) => cells.length >= 2 && /^[\d\s,]+$/.test(cells[cells.length - 1]))
+    .map((cells) => cells[0]);
+}
+
 function headerCells(figure: string): string[] {
   const head = /<tr\b[^>]*>([\s\S]*?)<\/tr>/i.exec(/<table\b[^>]*>([\s\S]*?)<\/table>/i.exec(figure)?.[1] ?? "");
   return [...(head?.[1] ?? "").matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi)].map((cell) => textOf(cell[1]));
@@ -90,8 +102,8 @@ function headerCells(figure: string): string[] {
 
 describe("C84 — the brief shows a chart under a news item that has a spec", () => {
   it("given the spec {price, [^FCHI, ^GSPC], 1M, normalize}, when I open the brief, then I see a figure captioned with both instruments, 1 mois and base 100", async () => {
-    await seedCloses("^FCHI", [["2026-10-26", 8000], ["2026-11-10", 8100], ["2026-11-23", 8240]]);
-    await seedCloses("^GSPC", [["2026-10-26", 5000], ["2026-11-10", 4950], ["2026-11-23", 5150]]);
+    await seedCloses("^FCHI", [["2026-10-23", 8000], ["2026-11-10", 8100], ["2026-11-23", 8240]]);
+    await seedCloses("^GSPC", [["2026-10-23", 5000], ["2026-11-10", 4950], ["2026-11-23", 5150]]);
 
     const html = await briefHtml(C84_SPEC);
 
@@ -105,8 +117,8 @@ describe("C84 — the brief shows a chart under a news item that has a spec", ()
   });
 
   it("given the same spec, when I open the brief, then both curves are in base 100: two columns starting at 100,00, in date order", async () => {
-    await seedCloses("^FCHI", [["2026-10-26", 8000], ["2026-11-10", 8100], ["2026-11-23", 8240]]);
-    await seedCloses("^GSPC", [["2026-10-26", 5000], ["2026-11-10", 4950], ["2026-11-23", 5150]]);
+    await seedCloses("^FCHI", [["2026-10-23", 8000], ["2026-11-10", 8100], ["2026-11-23", 8240]]);
+    await seedCloses("^GSPC", [["2026-10-23", 5000], ["2026-11-10", 4950], ["2026-11-23", 5150]]);
 
     const figure = figures(await briefHtml(C84_SPEC))[0];
 
@@ -118,9 +130,18 @@ describe("C84 — the brief shows a chart under a news item that has a spec", ()
     ]);
   });
 
+  it("given the same spec, when I open the brief, then the rows are dated JJ/MM/AAAA starting at the reference day", async () => {
+    await seedCloses("^FCHI", [["2026-10-23", 8000], ["2026-11-10", 8100], ["2026-11-23", 8240]]);
+    await seedCloses("^GSPC", [["2026-10-23", 5000], ["2026-11-10", 4950], ["2026-11-23", 5150]]);
+
+    const figure = figures(await briefHtml(C84_SPEC))[0];
+
+    expect(rowDates(figure)).toEqual(["23/10/2026", "10/11/2026", "23/11/2026"]);
+  });
+
   it("given the same spec, when I open the home page, then the chart is there too", async () => {
-    await seedCloses("^FCHI", [["2026-10-26", 8000], ["2026-11-23", 8240]]);
-    await seedCloses("^GSPC", [["2026-10-26", 5000], ["2026-11-23", 5150]]);
+    await seedCloses("^FCHI", [["2026-10-23", 8000], ["2026-11-23", 8240]]);
+    await seedCloses("^GSPC", [["2026-10-23", 5000], ["2026-11-23", 5150]]);
     await seedPayloads(databasePath, [{ date: DATE, payload: payloadWithChart(C84_SPEC) }]);
 
     const figure = figures(await renderHomePage())[0];
@@ -182,10 +203,10 @@ describe("C84 — the brief shows a chart under a news item that has a spec", ()
 });
 
 describe("C86 — the chart uses only the data of prices_daily", () => {
-  it("given closes before the window, after the brief date and inside it, when I open the brief, then only the inside ones are shown", async () => {
+  it("given a close before the base, the base on the reference date, and one after the brief date, when I open the brief, then only the base and the closes up to the brief date are shown", async () => {
     await seedCloses("^FCHI", [
-      ["2026-10-23", 1],
-      ["2026-10-24", 200],
+      ["2026-10-22", 1],
+      ["2026-10-23", 200],
       ["2026-11-23", 250],
       ["2026-11-24", 9999],
     ]);
