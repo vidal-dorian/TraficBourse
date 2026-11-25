@@ -14,7 +14,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/lib/db/migrate.ts"
+    "db:migrate": "tsx src/lib/db/migrate.ts",
+    "db:seed-concepts": "tsx src/lib/db/seed-concepts.ts"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",

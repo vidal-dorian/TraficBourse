@@ -55,6 +55,7 @@ Docker Compose reads a few more variables (all optional, commented out in `.env.
 | `npm run typecheck` | `tsc --noEmit` (TypeScript strict) |
 | `npm run db:generate` | Generates a new Drizzle migration in `src/lib/db/migrations/` from `src/lib/db/schema.ts` |
 | `npm run db:migrate` | Applies the committed migrations to the database at `DATABASE_PATH` (creates it if missing), loading `.env` when present |
+| `npm run db:seed-concepts` | Seeds (or refreshes, idempotently) the learning path of about 60 concepts in the migrated database at `DATABASE_PATH`; never touches `seen_in_brief_id` |
 
 To change the schema: edit `src/lib/db/schema.ts`, run `npm run db:generate`, commit the generated migration, then run `npm run db:migrate`.
 

@@ -1,0 +1,84 @@
+// The learning path of US #30: concepts ranked from basics to advanced, for a beginner investor in
+// France. Educational only: definitions describe mechanisms and never recommend buying or selling.
+// `order` is the position in the path (1..N, contiguous) and levels never decrease along it.
+
+export interface ConceptSeed {
+  slug: string;
+  title: string;
+  level: 1 | 2 | 3;
+  order: number;
+  /** Short definition, Markdown, one or two sentences. */
+  definition: string;
+  analogy?: string;
+  example?: string;
+}
+
+type Entry = Omit<ConceptSeed, "order">;
+
+const ENTRIES: Entry[] = [
+  // Level 1: basics
+  { slug: "action", title: "Action", level: 1, definition: "Une action est une part du capital d'une entreprise : son détenteur en possède une petite fraction et peut recevoir une part des bénéfices.", analogy: "C'est comme détenir une tranche d'un gâteau dont la taille dépend des résultats de l'entreprise.", example: "Si une entreprise a émis 1 million d'actions et que vous en détenez 100, vous possédez 0,01 % de son capital." },
+  { slug: "bourse", title: "Bourse", level: 1, definition: "La bourse est un marché organisé où s'échangent des titres financiers (actions, obligations, ETF) entre acheteurs et vendeurs." },
+  { slug: "indice-boursier", title: "Indice boursier", level: 1, definition: "Un indice boursier résume l'évolution d'un panier d'entreprises ou de titres pour mesurer la santé d'un marché.", analogy: "C'est un thermomètre : il ne soigne rien, il indique la température du marché.", example: "Le CAC 40 suit 40 grandes entreprises cotées à Paris." },
+  { slug: "capitalisation-boursiere", title: "Capitalisation boursière", level: 1, definition: "La capitalisation boursière est la valeur d'une entreprise en bourse : le cours de l'action multiplié par le nombre d'actions.", example: "Une action à 50 € avec 10 millions d'actions donne une capitalisation de 500 millions d'euros." },
+  { slug: "dividende", title: "Dividende", level: 1, definition: "Le dividende est la part des bénéfices qu'une entreprise verse à ses actionnaires, en général une ou plusieurs fois par an. Il n'est jamais garanti." },
+  { slug: "obligation", title: "Obligation", level: 1, definition: "Une obligation est un prêt consenti à un État ou à une entreprise, qui verse des intérêts réguliers puis rembourse le capital à l'échéance.", analogy: "C'est un prêt à un ami, avec un échéancier d'intérêts et une date de remboursement." },
+  { slug: "etf", title: "ETF", level: 1, definition: "Un ETF (fonds indiciel coté) est un fonds qui réplique un indice et s'achète en bourse comme une action, avec des frais généralement faibles.", example: "Un ETF sur le MSCI World permet de détenir en une seule ligne plusieurs centaines d'entreprises mondiales." },
+  { slug: "etf-capitalisant-distribuant", title: "ETF capitalisant ou distribuant", level: 1, definition: "Un ETF capitalisant réinvestit automatiquement les dividendes dans le fonds, alors qu'un ETF distribuant les verse à l'investisseur." },
+  { slug: "frais", title: "Frais", level: 1, definition: "Les frais (courtage, gestion, frais courants d'un fonds) réduisent le rendement année après année, d'autant plus que l'horizon est long.", example: "Des frais annuels de 1 % au lieu de 0,2 % retirent environ 0,8 point de rendement chaque année." },
+  { slug: "diversification", title: "Diversification", level: 1, definition: "La diversification consiste à répartir son argent entre de nombreux titres, secteurs et zones géographiques pour limiter l'impact d'une seule mauvaise surprise.", analogy: "C'est ne pas mettre tous ses œufs dans le même panier." },
+  { slug: "pea-et-compte-titres", title: "PEA et compte-titres", level: 1, definition: "Le PEA est une enveloppe fiscale pour investir en actions européennes avec une fiscalité allégée après cinq ans ; le compte-titres ordinaire (CTO) est plus libre mais imposé dès les premiers gains." },
+  { slug: "assurance-vie", title: "Assurance-vie", level: 1, definition: "L'assurance-vie est une enveloppe d'épargne française dans laquelle on peut placer son argent sur un fonds en euros ou sur des unités de compte, avec une fiscalité avantageuse après huit ans." },
+  { slug: "volatilite", title: "Volatilité", level: 1, definition: "La volatilité mesure l'ampleur des variations du prix d'un actif : plus elle est élevée, plus le prix monte et descend fortement.", analogy: "C'est la houle de la mer : plus elle est forte, plus le bateau tangue." },
+  { slug: "risque", title: "Risque", level: 1, definition: "En finance, le risque est la possibilité que le résultat d'un investissement diffère de l'attendu, y compris par une perte en capital." },
+  { slug: "rendement-et-risque", title: "Lien entre rendement et risque", level: 1, definition: "En général, un rendement espéré plus élevé s'accompagne d'un risque plus élevé : aucun placement ne rapporte beaucoup sans pouvoir aussi perdre." },
+  { slug: "inflation", title: "Inflation", level: 1, definition: "L'inflation est la hausse générale des prix, qui réduit le pouvoir d'achat de l'argent laissé sans rendement.", example: "Avec 2 % d'inflation, 100 € permettent d'acheter l'équivalent de 98 € de biens un an plus tard." },
+  { slug: "taux-d-interet", title: "Taux d'intérêt", level: 1, definition: "Le taux d'intérêt est le prix de l'argent emprunté ou prêté, exprimé en pourcentage du capital sur une période." },
+  { slug: "banque-centrale", title: "Banque centrale", level: 1, definition: "Une banque centrale, comme la BCE en zone euro, fixe les taux directeurs et veille à la stabilité des prix, ce qui influence tous les marchés." },
+  { slug: "interets-composes", title: "Intérêts composés", level: 1, definition: "Les intérêts composés signifient que les gains produisent eux-mêmes des gains : le capital grossit de plus en plus vite avec le temps.", example: "1 000 € à 5 % par an valent environ 1 629 € au bout de 10 ans." },
+  { slug: "horizon-de-placement", title: "Horizon de placement", level: 1, definition: "L'horizon de placement est la durée pendant laquelle on peut laisser son argent investi sans en avoir besoin ; plus il est long, plus on peut supporter les fluctuations." },
+  { slug: "liquidite", title: "Liquidité", level: 1, definition: "La liquidité désigne la facilité à vendre un actif rapidement, sans en faire baisser le prix de façon notable." },
+  { slug: "marche-haussier-baissier", title: "Marché haussier et baissier", level: 1, definition: "Un marché haussier est une période de hausse durable des cours, un marché baissier une période de baisse durable, généralement une chute d'au moins 20 %." },
+  // Level 2: intermediate
+  { slug: "per-plan-epargne-retraite", title: "PER (plan d'épargne retraite)", level: 2, definition: "Le PER est une enveloppe d'épargne retraite dont les versements sont en général déductibles du revenu imposable, mais bloquée jusqu'à la retraite sauf cas prévus par la loi." },
+  { slug: "ratio-cours-benefice", title: "Ratio cours/bénéfice (PER)", level: 2, definition: "Le ratio cours/bénéfice divise le cours d'une action par le bénéfice par action : il indique combien le marché paie pour un euro de bénéfice.", example: "Une action à 100 € pour un bénéfice de 5 € par action a un ratio de 20." },
+  { slug: "rendement-dividende", title: "Rendement du dividende", level: 2, definition: "Le rendement du dividende est le dividende annuel divisé par le cours de l'action, exprimé en pourcentage.", example: "Un dividende de 3 € pour une action à 100 € donne un rendement de 3 %." },
+  { slug: "resultats-trimestriels", title: "Résultats trimestriels", level: 2, definition: "Les entreprises cotées publient régulièrement leurs chiffres (chiffre d'affaires, bénéfice) ; l'écart avec ce que les analystes attendaient fait souvent bouger le cours." },
+  { slug: "ordres-de-bourse", title: "Ordres de bourse", level: 2, definition: "Un ordre de bourse est une instruction d'achat ou de vente : au marché, il est exécuté au meilleur prix disponible ; à cours limité, il n'est exécuté qu'au prix fixé ou mieux." },
+  { slug: "spread", title: "Spread", level: 2, definition: "Le spread est l'écart entre le meilleur prix d'achat et le meilleur prix de vente d'un titre : c'est un coût implicite à chaque transaction." },
+  { slug: "fiscalite-des-placements", title: "Fiscalité des placements", level: 2, definition: "En France, les gains sur un compte-titres sont en principe soumis au prélèvement forfaitaire unique de 30 % (impôt et prélèvements sociaux) ; les enveloppes comme le PEA ou l'assurance-vie ont leurs propres règles." },
+  { slug: "plus-value-et-moins-value", title: "Plus-value et moins-value", level: 2, definition: "Une plus-value est le gain réalisé en vendant un titre plus cher que son prix d'achat, une moins-value la perte dans le cas inverse. Tant que le titre n'est pas vendu, on parle de gain ou de perte latente." },
+  { slug: "dca-investissement-programme", title: "Investissement programmé", level: 2, definition: "L'investissement programmé consiste à investir une somme fixe à intervalles réguliers, quel que soit le cours, ce qui lisse le prix d'achat moyen dans le temps.", example: "Investir 100 € par mois achète plus de parts quand le prix baisse et moins quand il monte." },
+  { slug: "allocation-d-actifs", title: "Allocation d'actifs", level: 2, definition: "L'allocation d'actifs est la répartition d'un portefeuille entre grandes classes (actions, obligations, liquidités, immobilier…), qui explique l'essentiel de son comportement." },
+  { slug: "rebalancement", title: "Rééquilibrage", level: 2, definition: "Le rééquilibrage ramène un portefeuille à sa répartition cible après que les variations de prix l'ont déséquilibré." },
+  { slug: "pib", title: "PIB", level: 2, definition: "Le produit intérieur brut mesure la richesse produite par un pays sur une période ; sa croissance est un indicateur central de la santé de l'économie." },
+  { slug: "recession", title: "Récession", level: 2, definition: "Une récession est un recul de l'activité économique, souvent repérée par deux trimestres consécutifs de baisse du PIB." },
+  { slug: "taux-directeur", title: "Taux directeur", level: 2, definition: "Le taux directeur est le taux auquel la banque centrale prête aux banques ; il influence le coût du crédit, le rendement des obligations et la valorisation des actions." },
+  { slug: "cours-des-devises", title: "Taux de change", level: 2, definition: "Le taux de change est le prix d'une monnaie exprimé dans une autre ; il joue sur les résultats des entreprises exportatrices et sur la valeur des placements en devises étrangères.", example: "Si l'euro baisse face au dollar, un actif américain détenu en euros vaut plus d'euros à cours identique." },
+  { slug: "action-de-croissance-et-de-valeur", title: "Actions de croissance et de valeur", level: 2, definition: "Une action de croissance mise sur des bénéfices appelés à progresser vite, une action de valeur se traite à un prix jugé bas par rapport à ses fondamentaux." },
+  { slug: "obligation-d-etat", title: "Obligation d'État", level: 2, definition: "Une obligation d'État est émise par un pays pour se financer ; les plus sûres servent de référence pour les taux de tous les autres placements." },
+  { slug: "prix-et-taux-obligataires", title: "Prix et taux d'une obligation", level: 2, definition: "Le prix d'une obligation déjà émise varie en sens inverse des taux : quand les taux montent, sa valeur de revente baisse, et inversement." },
+  { slug: "drawdown", title: "Perte maximale (drawdown)", level: 2, definition: "Le drawdown est la baisse entre un sommet et le creux suivant ; il mesure la pire perte qu'aurait subie un investisseur resté investi.", example: "Un portefeuille passé de 10 000 € à 7 000 € avant de remonter a connu un drawdown de 30 %." },
+  { slug: "biais-comportementaux", title: "Biais comportementaux", level: 2, definition: "Les biais comportementaux (excès de confiance, peur de perdre, effet de troupeau) poussent les investisseurs à prendre de mauvaises décisions au mauvais moment." },
+  // Level 3: advanced
+  { slug: "duration", title: "Duration", level: 3, definition: "La duration mesure la sensibilité du prix d'une obligation aux variations de taux : plus elle est longue, plus le prix réagit fortement.", example: "Avec une duration de 5, une hausse des taux de 1 point fait baisser le prix d'environ 5 %." },
+  { slug: "courbe-des-taux", title: "Courbe des taux", level: 3, definition: "La courbe des taux relie les taux d'obligations de même émetteur selon leur durée ; quand elle s'inverse (taux courts supérieurs aux longs), elle a souvent précédé des ralentissements." },
+  { slug: "correlation", title: "Corrélation", level: 3, definition: "La corrélation mesure à quel point deux actifs évoluent ensemble, de +1 (même sens) à -1 (sens opposé) ; elle détermine l'efficacité de la diversification." },
+  { slug: "beta", title: "Bêta", level: 3, definition: "Le bêta mesure la sensibilité d'un titre aux mouvements du marché : supérieur à 1, il amplifie le marché ; inférieur à 1, il l'amortit." },
+  { slug: "ratio-de-sharpe", title: "Ratio de Sharpe", level: 3, definition: "Le ratio de Sharpe compare le rendement d'un placement au-dessus d'un taux sans risque à sa volatilité, pour juger le rendement obtenu par unité de risque pris." },
+  { slug: "produits-derives", title: "Produits dérivés", level: 3, definition: "Un produit dérivé est un contrat dont la valeur dépend d'un autre actif (actions, devises, matières premières) ; il sert à se couvrir ou à spéculer, souvent avec un effet de levier." },
+  { slug: "options", title: "Options", level: 3, definition: "Une option donne le droit, sans l'obligation, d'acheter (call) ou de vendre (put) un actif à un prix fixé jusqu'à une date donnée, en échange d'une prime." },
+  { slug: "contrats-a-terme", title: "Contrats à terme", level: 3, definition: "Un contrat à terme (future) engage à acheter ou vendre un actif à un prix et une date fixés à l'avance ; il est très utilisé sur les matières premières et les indices." },
+  { slug: "effet-de-levier", title: "Effet de levier", level: 3, definition: "L'effet de levier permet de s'exposer à un montant supérieur à sa mise, ce qui amplifie les gains comme les pertes, jusqu'à dépasser la somme investie.", example: "Avec un levier de 5, une baisse de 20 % du sous-jacent efface toute la mise." },
+  { slug: "vente-a-decouvert", title: "Vente à découvert", level: 3, definition: "La vente à découvert consiste à vendre un titre emprunté en espérant le racheter moins cher ; la perte potentielle est théoriquement illimitée." },
+  { slug: "valorisation-dcf", title: "Valorisation par actualisation des flux", level: 3, definition: "Cette méthode estime la valeur d'une entreprise en additionnant ses flux de trésorerie futurs, ramenés à aujourd'hui par un taux d'actualisation ; elle est très sensible à ses hypothèses." },
+  { slug: "risque-de-change", title: "Risque de change", level: 3, definition: "Le risque de change est l'effet des variations de devises sur la valeur d'un placement libellé dans une autre monnaie que la sienne." },
+  { slug: "risque-de-taux", title: "Risque de taux", level: 3, definition: "Le risque de taux est la perte de valeur d'un placement, notamment obligataire, causée par une hausse des taux d'intérêt." },
+  { slug: "replication-physique-synthetique", title: "Réplication physique ou synthétique", level: 3, definition: "Un ETF à réplication physique détient les titres de l'indice, alors qu'un ETF synthétique reproduit sa performance par un contrat d'échange avec une banque." },
+  { slug: "politique-monetaire-non-conventionnelle", title: "Politique monétaire non conventionnelle", level: 3, definition: "Quand les taux directeurs sont proches de zéro, les banques centrales peuvent acheter massivement des titres (assouplissement quantitatif) pour soutenir l'économie et faire baisser les taux longs." },
+  { slug: "bulle-financiere", title: "Bulle financière", level: 3, definition: "Une bulle financière est une hausse des prix très au-delà de la valeur fondamentale, nourrie par l'enthousiasme collectif, qui finit souvent par un éclatement brutal." },
+  { slug: "efficience-des-marches", title: "Efficience des marchés", level: 3, definition: "L'hypothèse d'efficience des marchés affirme que les prix reflètent déjà l'information disponible, ce qui rend difficile de battre durablement le marché." },
+  { slug: "gestion-active-et-passive", title: "Gestion active et passive", level: 3, definition: "La gestion active cherche à battre un indice par des choix de titres, avec des frais plus élevés ; la gestion passive se contente de le répliquer à moindre coût." },
+];
+
+export const CONCEPTS: readonly ConceptSeed[] = ENTRIES.map((entry, index) => ({ ...entry, order: index + 1 }));
