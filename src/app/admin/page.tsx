@@ -20,11 +20,16 @@ export default function AdminPage() {
           Gérer la watchlist
         </Link>
       </p>
+      <p className="mt-4 leading-relaxed">
+        <Link href="/admin/status" className="underline">
+          Voir l&apos;état
+        </Link>{" "}
+        (appels MCP et tâche des cours)
+      </p>
       <p className="mt-4 leading-relaxed">Bientôt ici :</p>
       <ul className="mt-2 list-disc pl-6 leading-relaxed">
         <li>les instruments suivis ;</li>
-        <li>le journal des appels MCP ;</li>
-        <li>l&apos;état des tâches planifiées.</li>
+        <li>l&apos;état des autres tâches planifiées.</li>
       </ul>
     </main>
   );

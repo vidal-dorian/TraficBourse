@@ -3,7 +3,7 @@
 import { eq, max } from "drizzle-orm";
 import { parisToday } from "../lib/dates/paris";
 import type { Db } from "../lib/db/client";
-import { instruments, pricesDaily } from "../lib/db/schema";
+import { instruments, jobRuns, pricesDaily } from "../lib/db/schema";
 import type { DailyBar, MarketDataProvider } from "../lib/market/provider";
 import { storeFinishedBars } from "../lib/market/store-bars";
 
@@ -111,6 +111,8 @@ export async function runPricesJob({
       logger.error(`prices: ${instrument.symbol} failed: ${message}`);
     }
   }
+
+  db.insert(jobRuns).values({ at: now, updatedCount: result.updated.length, failed: result.failed }).run();
 
   const perSource = Map.groupBy(result.updated, (entry) => entry.source);
   const sources = [...perSource].map(([name, entries]) => `${name}: ${entries.length}`).join(", ");

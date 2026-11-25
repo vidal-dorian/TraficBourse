@@ -140,6 +140,7 @@ src/app/api/health/route.ts   health route
 src/app/api/mcp/route.ts      MCP endpoint (bearer token or OAuth, stateless Streamable HTTP)
 src/app/admin/page.tsx        provisional admin page (French, noindex)
 src/app/admin/watchlist/      watchlist admin page (search, add, remove) and its server actions
+src/app/admin/status/         status page: latest MCP calls and last prices run (`src/lib/admin/status.ts`)
 src/lib/watchlist/            watchlist domain (add, remove, list) and the Access-checked owner entry points
 src/middleware.ts             Cloudflare Access check on /admin
 src/lib/auth/                 Access token verification (jose)
@@ -227,6 +228,8 @@ On the home page and `/brief/[date]`, a `<section aria-label="Ma watchlist">` (h
 ## Watchlist admin
 
 `/admin/watchlist` (`src/app/admin/watchlist/page.tsx`, linked from `/admin`, behind the same Access check, US #24) lets the owner add and remove stocks. The search form is a GET on `?q=` (name or symbol, trimmed, capped at 100 characters); only stocks and ETFs are listed (indexes, currencies, crypto and futures are not offered), each with « Ajouter », or « Déjà suivie » when it is already followed. The followed list shows « Retirer ». After an action the page is reloaded with `?status=` and a French message tells the outcome; a search that fails shows « La recherche est indisponible pour le moment, réessayez plus tard. ».
+
+`/admin/status` (`src/app/admin/status/page.tsx`, linked from `/admin`, same Access check, rendered per request, US #28) answers « why is the brief missing? »: the 50 latest `mcp_audit` calls (newest first: tool, « Succès » or « Échec », error, duration), then the « Tâche des cours » section with the date (Paris time) and result of the last prices run and the symbols that failed at that run with their message. `runPricesJob` records one `job_runs` row per run (migration `0010`: run time = its `now`, number updated, failed symbols as JSON), even when symbols fail. Two queries (`getAdminStatus`).
 
 - Search: the page only knows `InstrumentSearchProvider` (`src/lib/market/search.ts`); `src/lib/market/yahoo-search.ts` implements it with `yahoo-finance2` (unofficial, like the prices) and also looks the currency up through Yahoo's `quote`.
 - Add (`src/lib/watchlist/watchlist.ts`): creates the instrument (the Yahoo symbol is both `symbol` and `provider_symbol`; an existing one keeps its data and only gets `in_watchlist`) and stores one year of closes with the rules of the prices job (`src/lib/market/store-bars.ts`: days before Paris today, upsert on `symbol` + `date`). If the history cannot be fetched the stock stays followed and the next prices job fills it, which the page says.
