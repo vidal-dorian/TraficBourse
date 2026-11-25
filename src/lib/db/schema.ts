@@ -177,3 +177,15 @@ export const pricesDaily = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.symbol, table.date] })],
 );
+
+/**
+ * One row per prices job run (US #28), written by `runPricesJob` even when symbols fail: when it ran
+ * (`at`, its `now`), how many instruments were updated and the failed symbols with their message
+ * (JSON array of `{ symbol, error }`).
+ */
+export const jobRuns = sqliteTable("job_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  at: integer("at", { mode: "timestamp" }).notNull(),
+  updatedCount: integer("updated_count").notNull(),
+  failed: text("failed", { mode: "json" }).$type<{ symbol: string; error: string }[]>().notNull(),
+});
