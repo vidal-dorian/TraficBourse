@@ -95,9 +95,9 @@ const REASON_LABELS: Record<StockNoteReason, string> = {
   weekly: "Point de la semaine",
 };
 
-/** One card of « Ma watchlist »: the stock, the app's day variation, then the text of Claude. */
+/** One card of « Ma watchlist »: the stock, the app's variation (day or week), then the text of Claude. */
 function StockNoteItem({ note }: { note: StockNoteCard }) {
-  const variation = variationLabel(note.dayVariation);
+  const variation = variationLabel(note.variation);
   const refs = note.newsRefs.flatMap((url) => {
     const href = safeHref(url);
     return href ? [href] : [];
@@ -106,7 +106,10 @@ function StockNoteItem({ note }: { note: StockNoteCard }) {
     <li className="rounded border border-neutral-200 p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="font-semibold">{note.name}</h3>
-        <p className={`text-sm font-semibold ${variation.className}`}>{variation.text}</p>
+        <p className={`text-sm font-semibold ${variation.className}`}>
+          {variation.text}
+          {note.period === "week" ? <span className="ml-1 font-normal text-neutral-600">sur la semaine</span> : null}
+        </p>
       </div>
       <p className="text-xs text-neutral-600">{REASON_LABELS[note.reason]}</p>
       <Markdown text={note.summary} className="mt-2 leading-relaxed" />

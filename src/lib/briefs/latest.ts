@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { briefs, instruments, newsItems, stockNotes } from "@/lib/db/schema";
 import { loadChartData, type ChartData } from "@/lib/market/chart";
+import { subtractDays } from "@/lib/dates/paris";
 import { computeVariations } from "@/lib/market/snapshot";
 
 /** On the same date, the weekly recap before the daily brief (`ORDER BY` fragment). */
@@ -11,12 +12,14 @@ export const weeklyFirst = sql`CASE ${briefs.kind} WHEN 'weekly' THEN 0 ELSE 1 E
 /** The columns of a shown brief, its id to load its news. */
 export const briefColumns = { id: briefs.id, date: briefs.date, kind: briefs.kind, tldr: briefs.tldr, mood: briefs.mood };
 
-/** A note of the « Ma watchlist » section: Claude's text and the app's day variation of the stock. */
+/** A note of the « Ma watchlist » section: Claude's text and the app's variation of the stock. */
 export type StockNoteCard = Pick<typeof stockNotes.$inferSelect, "symbol" | "reason" | "summary" | "newsRefs" | "nextEvent"> & {
   /** The instrument's name, the symbol when it is not an instrument any more. */
   name: string;
-  /** Day variation in percent from the closes before the brief date, null when unknown. */
-  dayVariation: number | null;
+  /** Variation in percent from the closes before the brief date, null when unknown. */
+  variation: number | null;
+  /** The period of `variation`: the day for a daily brief, the week for the weekly recap. */
+  period: "day" | "week";
 };
 
 /** A brief as the public pages show it (home page, brief of a date). */
@@ -46,7 +49,7 @@ export function getLatestBrief(db: Db, today: string): BriefWithNews | undefined
   if (!brief) return undefined;
 
   const { id, ...rest } = brief;
-  return { ...rest, news: newsOf(db, id, brief.date), stockNotes: stockNotesOf(db, id, brief.date) };
+  return { ...rest, news: newsOf(db, id, brief.date), stockNotes: stockNotesOf(db, id, brief.date, brief.kind) };
 }
 
 /** The news items of the brief `briefId` dated `date`, in rank order, with the series of their chart ending on `date`. */
@@ -71,12 +74,16 @@ export function newsOf(db: Db, briefId: number, date: string): BriefWithNews["ne
   return rows.map(({ chartSpec, ...item }) => ({ ...item, chart: chartSpec ? loadChartData(db, chartSpec, date) : null }));
 }
 
+/** How far back the weekly recap reads closes: the week reference is 7 days before the last close. */
+const WEEK_HISTORY_DAYS = 35;
+
 /**
- * The stock notes of the brief `briefId` dated `date`, in payload order. Day variations come from
- * the closes strictly before `date`, as for the market tiles. Three queries whatever the number of
- * notes: the notes, their instruments, then the last two closes of each symbol.
+ * The stock notes of the brief `briefId` dated `date`, in payload order. Variations come from
+ * the closes strictly before `date`, as for the market tiles: the day's for a daily brief, the
+ * week's for the weekly recap. Three queries whatever the number of notes: the notes, their
+ * instruments, then the closes of each symbol (the last two, or the last 35 days for a recap).
  */
-export function stockNotesOf(db: Db, briefId: number, date: string): StockNoteCard[] {
+export function stockNotesOf(db: Db, briefId: number, date: string, kind: "daily" | "weekly"): StockNoteCard[] {
   const notes = db
     .select({
       symbol: stockNotes.symbol,
@@ -100,19 +107,27 @@ export function stockNotesOf(db: Db, briefId: number, date: string): StockNoteCa
       .all()
       .map((row) => [row.symbol, row.name]),
   );
-  const lastTwo = db.all<{ symbol: string; date: string; close: number }>(sql`
-    SELECT symbol, date, close FROM (
-      SELECT symbol, date, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS position
-      FROM prices_daily
-      WHERE symbol IN (${sql.join(symbols.map((symbol) => sql`${symbol}`), sql`, `)}) AND date < ${date}
-    ) WHERE position <= 2`);
+  const period = kind === "weekly" ? "week" : "day";
+  const inSymbols = sql`symbol IN (${sql.join(symbols.map((symbol) => sql`${symbol}`), sql`, `)}) AND date < ${date}`;
+  const closes =
+    period === "week"
+      ? db.all<{ symbol: string; date: string; close: number }>(
+          sql`SELECT symbol, date, close FROM prices_daily WHERE ${inSymbols} AND date >= ${subtractDays(date, WEEK_HISTORY_DAYS)}`,
+        )
+      : db.all<{ symbol: string; date: string; close: number }>(sql`
+          SELECT symbol, date, close FROM (
+            SELECT symbol, date, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS position
+            FROM prices_daily
+            WHERE ${inSymbols}
+          ) WHERE position <= 2`);
 
   return notes.map((note) => ({
     ...note,
     name: names.get(note.symbol) ?? note.symbol,
-    dayVariation: computeVariations(
-      lastTwo.filter((row) => row.symbol === note.symbol),
+    variation: computeVariations(
+      closes.filter((row) => row.symbol === note.symbol),
       date,
-    ).variations.day,
+    ).variations[period],
+    period,
   }));
 }

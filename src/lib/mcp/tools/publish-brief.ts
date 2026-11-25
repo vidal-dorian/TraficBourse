@@ -1,7 +1,7 @@
 // `publish_brief(date, kind, payload, dry_run?)` (CLAUDE.md §7): the write tool of the Claude
 // scheduled task. Arguments are validated by the server against `inputSchema` (all issues at
 // once, one "path : message" line each) before the handler runs; the handler only writes.
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { publishBrief } from "@/lib/briefs/publish";
 import { getDb, type Db } from "@/lib/db/client";
@@ -60,6 +60,25 @@ function unknownWatchlistSymbols(db: Db, payload: BriefPayload): string[] {
   );
 }
 
+/**
+ * A weekly recap must hold a note for every followed stock: one line naming the symbols without
+ * a note (US #29), none for a daily brief or an empty watchlist. One query.
+ */
+function uncoveredWatchlistSymbols(db: Db, kind: z.infer<typeof BriefKind>, payload: BriefPayload): string[] {
+  if (kind !== "weekly") return [];
+  const covered = new Set(payload.stockNotes.map((note) => note.symbol));
+  const missing = db
+    .select({ symbol: instruments.symbol })
+    .from(instruments)
+    .where(eq(instruments.inWatchlist, true))
+    .orderBy(asc(instruments.symbol))
+    .all()
+    .map((row) => row.symbol)
+    .filter((symbol) => !covered.has(symbol));
+  if (missing.length === 0) return [];
+  return [`payload.stockNotes : le récapitulatif doit avoir une fiche pour chaque valeur de la watchlist, il manque : ${missing.map((symbol) => `« ${symbol} »`).join(", ")}.`];
+}
+
 export const publishBriefTool: McpTool<typeof inputSchema> = {
   name: "publish_brief",
   description:
@@ -72,14 +91,15 @@ export const publishBriefTool: McpTool<typeof inputSchema> = {
     const db = getDb();
     const unknownCharts = unknownChartSymbols(db, payload);
     const unfollowed = unknownWatchlistSymbols(db, payload);
-    if (unknownCharts.length > 0 || unfollowed.length > 0) {
+    const uncovered = uncoveredWatchlistSymbols(db, kind, payload);
+    if (unknownCharts.length > 0 || unfollowed.length > 0 || uncovered.length > 0) {
       const section = (title: string, lines: string[]) => (lines.length > 0 ? [`${title}, rien n'a été écrit :`, ...lines.map((line) => `- ${line}`)] : []);
       return {
         isError: true,
         content: [
           {
             type: "text",
-            text: [...section("Graphique refusé", unknownCharts), ...section("Fiche refusée", unfollowed)].join("\n"),
+            text: [...section("Graphique refusé", unknownCharts), ...section("Fiche refusée", [...unfollowed, ...uncovered])].join("\n"),
           },
         ],
       };

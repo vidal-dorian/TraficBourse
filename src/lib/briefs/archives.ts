@@ -31,5 +31,5 @@ export function getBriefsOfDate(db: Db, date: string, today: string): BriefWithN
     .where(and(eq(briefs.status, "published"), eq(briefs.date, date), lte(briefs.date, today)))
     .orderBy(weeklyFirst)
     .all()
-    .map(({ id, ...brief }) => ({ ...brief, news: newsOf(db, id, brief.date), stockNotes: stockNotesOf(db, id, brief.date) }));
+    .map(({ id, ...brief }) => ({ ...brief, news: newsOf(db, id, brief.date), stockNotes: stockNotesOf(db, id, brief.date, brief.kind) }));
 }

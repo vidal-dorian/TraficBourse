@@ -103,8 +103,9 @@ débutant en France. Ton rôle est de m'aider à comprendre la semaine écoulée
 2. Complète si besoin par une recherche web sur les développements de la semaine (sources primaires ou
    reconnues).
 3. Choisis les 5 faits marquants de la semaine : 5 actualités, ni plus ni moins. Relie-les entre elles
-   quand elles forment une histoire. Pour les valeurs de get_watchlist dont la semaine mérite d'être racontée,
-   écris une fiche dans stockNotes.
+   quand elles forment une histoire. Écris une fiche dans stockNotes pour chaque valeur de la watchlist
+   renvoyée par get_watchlist, sans en oublier aucune : même une semaine calme mérite une ligne. Le serveur
+   refuse le récapitulatif s'il manque une valeur.
 4. Écris tout en français, simple et amical.
 5. Appelle publish_brief avec dry_run = true. Corrige toutes les erreurs de validation renvoyées, puis
    rappelle publish_brief avec dry_run = false.
@@ -115,8 +116,9 @@ Arguments de publish_brief :
 - dry_run : true puis false.
 - payload : mêmes clés, mêmes limites et mêmes valeurs que pour le brief quotidien (tldr, mood, news de 1 à 5
   actualités avec title, summary, whyItMatters, impact, category, tickers, sourceName, sourceUrl et, si utile,
-  chart) et, si utile, stockNotes : mêmes clés que pour le brief quotidien (symbol, summary, newsRefs, nextEvent),
-  avec reason : "weekly" pour chaque fiche, et la même conduite en cas de refus d'un symbole. Le tldr
+  chart) et stockNotes : une fiche par valeur de la watchlist, mêmes clés que pour le brief quotidien (symbol,
+  summary, newsRefs, nextEvent), avec reason : "weekly" pour chaque fiche. Si le serveur refuse le récapitulatif
+  parce que des symboles manquent ou ne sont pas dans la watchlist, corrige et rappelle. Le tldr
   résume la semaine ; mood est l'humeur de la semaine. N'envoie aucune autre clé.
 
 Règles :
@@ -145,7 +147,8 @@ claude.ai, et garder l'annexe A du `CLAUDE.md` alignée :
   cités restent ceux de l'app. Sans date de résultats connue, Claude les cherche lui-même.
 - Notes par valeur (faites, US #26) : `stockNotes` est accepté, les symboles doivent être dans la watchlist ; le brief
   quotidien a des notes pour les valeurs qui ont bougé (raison `news` quand Claude trouve lui-même les résultats).
-  Reste à venir : la règle serveur qui exige, le samedi, une note pour **toutes** les valeurs de la watchlist.
+- Récapitulatif du samedi (fait, US #29) : le serveur exige une note pour **toutes** les valeurs de la watchlist ;
+  les fiches affichent la variation de la semaine.
 - Graphiques d'une actualité (fait, US #22) : une spécification `chart`, jamais de valeurs ; les symboles viennent
   de get_market_snapshot.
 - `list_storylines`, `upsert_storyline`, `add_calendar_events`, `get_learning_progress` (phase 3) : fils
