@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
-# 2. Build: Next.js standalone server, plus the migration runner and the jobs entrypoint
+# 2. Build: Next.js standalone server, plus the migration runner, the concepts seed and the jobs entrypoint
 #    bundled with esbuild (tsx is a dev dependency and is not shipped).
 FROM deps AS build
 ENV NEXT_TELEMETRY_DISABLED=1
