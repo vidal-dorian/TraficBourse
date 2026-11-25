@@ -48,7 +48,7 @@ Docker Compose reads a few more variables (all optional, commented out in `.env.
 | --- | --- |
 | `npm run dev` | Next.js dev server |
 | `npm run build` | Production build (`output: "standalone"`) |
-| `npm run build:scripts` | Bundles the migration runner and the jobs entrypoint into `dist/` with esbuild (used by the Docker image) |
+| `npm run build:scripts` | Bundles the migration runner, the concepts seed and the jobs entrypoint into `dist/` with esbuild (used by the Docker image) |
 | `npm run start` | Serves the production build |
 | `npm run lint` | ESLint (`eslint.config.mjs`, Next.js core-web-vitals + TypeScript rules) |
 | `npm test` | Vitest, runs `tests/**/*.test.{ts,tsx}` once |
@@ -163,7 +163,10 @@ src/lib/dates/paris.ts        Europe/Paris calendar dates, day arithmetic and Fr
 src/lib/db/client.ts          SQLite connection (WAL, busy timeout) and Drizzle client
 src/lib/db/schema.ts          Drizzle schema
 src/lib/db/migrate.ts         migration runner used by `npm run db:migrate`
-src/lib/db/migrations/        generated SQL migrations (0005 seeds the default instruments, 0006 adds `fallback_symbol`, 0007 adds `news_items.chart_spec`, 0008 adds `instruments.last_earnings_date`, 0009 adds `stock_notes` and its `brief_id` index)
+src/lib/db/seed-concepts.ts   entrypoint of `npm run db:seed-concepts` (and of the Docker `migrate` service)
+src/lib/concepts/data.ts      the learning path: about 60 concepts, level 1 to 3, in path order
+src/lib/concepts/seed.ts      `seedConcepts`: idempotent upsert of that list on `slug`
+src/lib/db/migrations/        generated SQL migrations (0005 seeds the default instruments, 0006 adds `fallback_symbol`, 0007 adds `news_items.chart_spec`, 0008 adds `instruments.last_earnings_date`, 0009 adds `stock_notes` and its `brief_id` index, 0010 adds `job_runs`, 0011 adds `concepts`)
 src/lib/market/provider.ts    `MarketDataProvider` interface (daily bars of a provider symbol)
 src/lib/market/yahoo.ts       `MarketDataProvider` backed by yahoo-finance2
 src/lib/market/twelvedata.ts  `MarketDataProvider` backed by Twelve Data (fallback of Yahoo)
@@ -238,6 +241,10 @@ On the home page and `/brief/[date]`, a `<section aria-label="Ma watchlist">` (h
 - Security: the server actions (`src/app/admin/watchlist/actions.ts`) call `src/lib/watchlist/owner-actions.ts`, which re-verifies the Cloudflare Access token (same rules as the middleware, fail closed) before any call or write, since a server action can be POSTed to a path the middleware does not cover. On add, the submitted fields are not trusted: the result is re-resolved through the search server-side and the currency comes from Yahoo. Failures (`forbidden`, `invalid`, `not_found`, `search_failed`, `currency_failed`, `write_failed`, `history_failed`) each have their message.
 - Currencies in minor units (`GBp`, `GBX`, `ZAc`, as Yahoo gives them for London or Johannesburg listings) are shown by `formatClose` as the plain number followed by the code, not as a currency amount.
 
+## Learning path
+
+The `concepts` table (US #30, migration 0011) holds the learning path: about 60 concepts ranked from basics (level 1) to advanced (level 3), each with a `slug`, a `title`, a unique `order` (its position in the path), a short definition (`body_md`) and an optional analogy and example. The list lives in `src/lib/concepts/data.ts`. `npm run db:seed-concepts` (and the Docker `migrate` service, after the migrations) runs `seedConcepts` (`src/lib/concepts/seed.ts`): an upsert on `slug`, so running it twice changes nothing and an edit to the list is applied on the next run. `seen_in_brief_id`, set once a brief has taught the concept, is never touched by the seed. A concept removed from the list stays in the table, parked on a negative `order`: readers of the path must keep only `order > 0`. Nothing reads the table yet: `get_learning_progress` and the « Apprendre » page come with later tickets.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on every push on `main` and on every pull request, whatever its base branch (stacked PRs included):
@@ -258,6 +265,6 @@ mkdir -p data && sudo chown 1000:1000 data   # the containers run as uid 1000
 PLATFORM=linux/amd64 BOURSE_DATA_DIR=./data docker compose up -d --build
 ```
 
-The `migrate` service applies the migrations and exits, then `web` (http://127.0.0.1:3000, bound to loopback only) and `jobs` start. `docker compose logs -f` follows the logs, `docker compose down` stops the stack; the database stays in `./data`.
+The `migrate` service applies the migrations, seeds the concepts and exits, then `web` (http://127.0.0.1:3000, bound to loopback only) and `jobs` start. `docker compose logs -f` follows the logs, `docker compose down` stops the stack; the database stays in `./data`.
 
 The end-to-end Docker tests are skipped by default; run them with `DOCKER_TESTS=1 npx vitest run tests/docker.integration.test.ts` (`PLATFORM` defaults to the host platform).
