@@ -16,7 +16,7 @@ the Pi itself remains possible as a fallback ([Build locally](#build-locally-fal
 
 | Service | Command | Role |
 | --- | --- | --- |
-| `migrate` | `node dist/lib/db/migrate.js` | One-shot: applies the database migrations, then exits. `web` and `jobs` only start once it succeeded. |
+| `migrate` | `node dist/lib/db/migrate.js && node dist/lib/db/seed-concepts.js` | One-shot: applies the database migrations, then seeds (or refreshes, idempotently) the learning path of about 60 concepts, then exits. `web` and `jobs` only start once it succeeded. |
 | `web` | `node server.js` | Next.js server on port 3000, published on `127.0.0.1:WEB_PORT` on the host only, health check on `/api/health`. |
 | `jobs` | `node dist/jobs/index.js` | node-cron scheduler, timezone Europe/Paris. It logs an hourly heartbeat and runs the prices job every day at 06:30 (see [Closing prices](#closing-prices)). It is the only service that calls external APIs (Yahoo Finance, and Twelve Data as a fallback when `TWELVE_DATA_API_KEY` is set), so it needs outbound internet access. |
 
