@@ -189,3 +189,20 @@ export const jobRuns = sqliteTable("job_runs", {
   updatedCount: integer("updated_count").notNull(),
   failed: text("failed", { mode: "json" }).$type<{ symbol: string; error: string }[]>().notNull(),
 });
+
+/**
+ * Learning path (US #30): about 60 concepts ranked from basics (level 1) to advanced (level 3),
+ * seeded by `npm run db:seed-concepts`. `order` is the position in the path, `body_md` the short
+ * definition. `seen_in_brief_id` is set once a brief has taught the concept and never by the seed.
+ */
+export const concepts = sqliteTable("concepts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  level: integer("level").notNull(),
+  order: integer("order").notNull().unique(),
+  bodyMd: text("body_md").notNull(),
+  analogy: text("analogy"),
+  example: text("example"),
+  seenInBriefId: integer("seen_in_brief_id").references(() => briefs.id, { onDelete: "set null" }),
+});

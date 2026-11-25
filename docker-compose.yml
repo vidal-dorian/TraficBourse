@@ -2,7 +2,7 @@
 # next to this file; defaults suit the Pi.
 #
 # Three services, one image:
-# - migrate: one-shot, applies the Drizzle migrations, then exits. web and jobs only start
+# - migrate: one-shot, applies the Drizzle migrations, then seeds the concepts, then exits. web and jobs only start
 #   once it succeeded, so the schema is always up to date before anything uses it, and the
 #   two long-running processes never race to migrate the same file.
 # - web: Next.js server (pages, API), port 3000 on 127.0.0.1, reverse-proxied by Caddy.
@@ -38,7 +38,7 @@ x-app: &app
 services:
   migrate:
     <<: *app
-    command: ["node", "dist/lib/db/migrate.js"]
+    command: ["sh", "-c", "node dist/lib/db/migrate.js && node dist/lib/db/seed-concepts.js"]
     restart: "no"
 
   web:
