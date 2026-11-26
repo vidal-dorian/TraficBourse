@@ -55,6 +55,14 @@ describe("C70 — docs/prompt-tache-planifiee.md", () => {
     expect(codeBlocks(text).length).toBeGreaterThanOrEqual(2);
   });
 
+  it("US #29 — given the Saturday prompt, when I read it, then it requires a note for every followed stock and the doc no longer lists the rule as to come", () => {
+    const text = doc();
+    const weekly = codeBlocks(text).find((block) => /kind : "weekly"/.test(block)) ?? "";
+    expect(weekly).toMatch(/chaque valeur de (?:la|ma) watchlist|toutes les valeurs de (?:la|ma) watchlist/i);
+    expect(weekly).not.toMatch(/dont la semaine mérite/);
+    expect(text).not.toMatch(/Reste à venir : la règle serveur/);
+  });
+
   it("C70 — given the prompt, when I read the rules, then it forbids buy/sell/hold recommendations", () => {
     const prompt = codeBlocks(doc()).join("\n");
     expect(prompt).toMatch(/recommandation|conseil/i);

@@ -134,10 +134,11 @@ describe("#97 — given a payload with stockNotes, when Claude publishes, then e
   it("#97 — given notes on a daily and a weekly brief of the same date, when both are published, then each keeps its own notes", async () => {
     const client = await connect();
     await publish(client, { date: DATE, kind: "daily", payload: payloadWithNotes(FULL_NOTE) });
-    await publish(client, { date: DATE, kind: "weekly", payload: payloadWithNotes(MINIMAL_NOTE) });
+    await publish(client, { date: DATE, kind: "weekly", payload: payloadWithNotes(MINIMAL_NOTE, { ...MINIMAL_NOTE, symbol: "AI.PA" }) });
     const briefs = readBriefs(databasePath);
     const rows = readStockNotes(databasePath);
-    expect(rows).toHaveLength(2);
+    // US #29: the recap covers every followed stock (two here).
+    expect(rows).toHaveLength(3);
     const daily = briefs.find((b) => b.kind === "daily")!;
     expect(rows.find((r) => r.brief_id === daily.id)?.symbol).toBe("AI.PA");
   });
